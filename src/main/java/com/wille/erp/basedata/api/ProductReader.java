@@ -14,6 +14,9 @@ public interface ProductReader {
     /** 按商品编码读取（Excel 导入解析用）；不存在返回 null */
     ProductInfo readByCode(String skuCode);
 
+    /** 关键字（编码/名称）匹配的商品 id，上限 50（库存查询过滤用） */
+    java.util.List<Long> searchIds(String keyword);
+
     record ProductInfo(Long skuId, String skuCode, String name, String unit,
                        MgmtMode mgmtMode, Integer shelfLifeDays) {
         public boolean lotManaged() {

@@ -33,6 +33,11 @@ public class ProductReaderImpl implements ProductReader {
         return product == null ? null : toInfo(product);
     }
 
+    @Override
+    public List<Long> searchIds(String keyword) {
+        return searchByName(keyword, 50).stream().map(BaseProduct::getId).toList();
+    }
+
     private static ProductInfo toInfo(BaseProduct product) {
         return new ProductInfo(product.getId(), product.getSkuCode(), product.getName(),
                 product.getUnit(), product.getMgmtMode(), product.getShelfLifeDays());

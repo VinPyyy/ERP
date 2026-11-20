@@ -48,10 +48,13 @@ class BasedataControllerTest {
     private MockMvc mockMvc;
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private com.wille.erp.system.service.PasswordCryptoService passwordCryptoService;
 
     private String adminToken() throws Exception {
         String body = mockMvc.perform(post("/api/auth/login").contentType(JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"admin123\"}"))
+                        .content(objectMapper.writeValueAsString(com.wille.erp.support.LoginTestRequests
+                                .encrypted(passwordCryptoService, "admin", "admin123"))))
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body).path("data").path("token").asText();
     }

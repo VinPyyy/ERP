@@ -6,7 +6,7 @@ import com.wille.erp.system.dto.LoginRequest;
 import com.wille.erp.system.dto.LoginResponse;
 import com.wille.erp.system.dto.MeResponse;
 import com.wille.erp.system.service.AuthService;
-import com.wille.erp.system.service.LoginCryptoService;
+import com.wille.erp.system.service.PasswordCryptoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,12 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
-    private final LoginCryptoService loginCryptoService;
+    private final PasswordCryptoService passwordCryptoService;
 
-    /** 登录前领取一次性加密挑战：公钥 + nonce + TTL */
+    /** 领取一次性加密挑战（登录与重置密码共用）：公钥 + nonce + TTL */
     @GetMapping("/crypto")
     public R<CryptoChallenge> crypto() {
-        return R.ok(loginCryptoService.issue());
+        return R.ok(passwordCryptoService.issue());
     }
 
     @PostMapping("/login")

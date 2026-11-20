@@ -15,12 +15,12 @@ import java.util.Base64;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 登录密码传输加密：RSA-2048 密钥对进程内存生成（重启即轮换，前端每次登录现取公钥）。
- * 密文格式 OAEP(SHA-256/MGF1-SHA1) 加密 "nonce.password"，把密文与一次性 nonce 绑定，
- * 被抓包也无法配新 nonce 重放（pass-the-ciphertext）。
+ * 密码传输加密（登录 / 重置密码共用）：RSA-2048 密钥对进程内存生成
+ * （重启即轮换，前端每次现取公钥）。密文格式 OAEP(SHA-256/MGF1-SHA1) 加密
+ * "nonce.password"，把密文与一次性 nonce 绑定，被抓包也无法配新 nonce 重放。
  */
 @Service
-public class LoginCryptoService {
+public class PasswordCryptoService {
 
     public static final int NONCE_TTL_SECONDS = 120;
     private static final String TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding";
@@ -30,7 +30,7 @@ public class LoginCryptoService {
     /** nonce → 过期毫秒；remove() 的原子性即"一次性"语义 */
     private final ConcurrentHashMap<String, Long> issued = new ConcurrentHashMap<>();
 
-    public LoginCryptoService() {
+    public PasswordCryptoService() {
         try {
             KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
             gen.initialize(2048, random);

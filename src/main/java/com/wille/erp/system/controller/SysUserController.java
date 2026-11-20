@@ -7,6 +7,7 @@ import com.wille.erp.system.dto.ResetPasswordRequest;
 import com.wille.erp.system.dto.UserQuery;
 import com.wille.erp.system.dto.UserSaveRequest;
 import com.wille.erp.system.dto.UserVO;
+import com.wille.erp.system.service.PasswordCryptoService;
 import com.wille.erp.system.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SysUserController {
 
     private final UserService userService;
+    private final PasswordCryptoService passwordCryptoService;
 
     @GetMapping
     @SaCheckPermission("system:user:list")
@@ -54,7 +56,9 @@ public class SysUserController {
     @PutMapping("/{id}/password")
     @SaCheckPermission("system:user:reset-password")
     public R<Void> resetPassword(@PathVariable Long id, @Valid @RequestBody ResetPasswordRequest request) {
-        userService.resetPassword(id, request.getPassword());
+        String newPassword = passwordCryptoService.verifyAndDecrypt(
+                request.getNonce(), request.getTs(), request.getEncryptedPassword());
+        userService.resetPassword(id, newPassword);
         return R.ok();
     }
 

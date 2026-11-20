@@ -31,13 +31,13 @@ public class AuthService {
     private final SysPermissionMapper permissionMapper;
     private final SysUserWarehouseMapper userWarehouseMapper;
     private final PasswordEncoder passwordEncoder;
-    private final LoginCryptoService loginCryptoService;
+    private final PasswordCryptoService passwordCryptoService;
     private final LoginRateLimiter loginRateLimiter;
 
     public LoginResponse login(LoginRequest request) {
         loginRateLimiter.assertNotLocked(request.getUsername());
         // 挑战校验失败（过期/重放）不计入密码错误次数，也不解密用户凭据
-        String password = loginCryptoService.verifyAndDecrypt(
+        String password = passwordCryptoService.verifyAndDecrypt(
                 request.getNonce(), request.getTs(), request.getEncryptedPassword());
 
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()

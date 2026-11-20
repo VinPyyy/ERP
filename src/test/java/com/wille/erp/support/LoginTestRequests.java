@@ -2,7 +2,8 @@ package com.wille.erp.support;
 
 import com.wille.erp.system.dto.CryptoChallenge;
 import com.wille.erp.system.dto.LoginRequest;
-import com.wille.erp.system.service.LoginCryptoService;
+import com.wille.erp.system.dto.ResetPasswordRequest;
+import com.wille.erp.system.service.PasswordCryptoService;
 
 import javax.crypto.Cipher;
 import java.nio.charset.StandardCharsets;
@@ -19,11 +20,21 @@ public final class LoginTestRequests {
     private LoginTestRequests() {
     }
 
-    public static LoginRequest encrypted(LoginCryptoService crypto, String username, String password) {
+    public static LoginRequest encrypted(PasswordCryptoService crypto, String username, String password) {
         CryptoChallenge ch = crypto.issue();
         LoginRequest request = new LoginRequest();
         request.setUsername(username);
         request.setEncryptedPassword(encrypt(ch.publicKey(), ch.nonce() + "." + password));
+        request.setNonce(ch.nonce());
+        request.setTs(System.currentTimeMillis());
+        return request;
+    }
+
+    /** 重置密码请求：与登录同一挑战机制 */
+    public static ResetPasswordRequest encryptedReset(PasswordCryptoService crypto, String newPassword) {
+        CryptoChallenge ch = crypto.issue();
+        ResetPasswordRequest request = new ResetPasswordRequest();
+        request.setEncryptedPassword(encrypt(ch.publicKey(), ch.nonce() + "." + newPassword));
         request.setNonce(ch.nonce());
         request.setTs(System.currentTimeMillis());
         return request;

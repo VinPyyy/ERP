@@ -37,7 +37,7 @@ class AuthServiceTest {
     @Autowired
     private DataFactory dataFactory;
     @Autowired
-    private LoginCryptoService loginCryptoService;
+    private PasswordCryptoService passwordCryptoService;
 
     @BeforeEach
     void bindMockRequest() {
@@ -54,7 +54,7 @@ class AuthServiceTest {
     }
 
     private LoginRequest req(String username, String password) {
-        return LoginTestRequests.encrypted(loginCryptoService, username, password);
+        return LoginTestRequests.encrypted(passwordCryptoService, username, password);
     }
 
     @Test

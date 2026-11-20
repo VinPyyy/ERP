@@ -37,7 +37,7 @@ class AuthControllerTest {
     @Autowired
     private DataFactory dataFactory;
     @Autowired
-    private com.wille.erp.system.service.LoginCryptoService loginCryptoService;
+    private com.wille.erp.system.service.PasswordCryptoService passwordCryptoService;
 
     private String loginAndGetToken(String username, String password) throws Exception {
         String body = mockMvc.perform(post("/api/auth/login")
@@ -50,7 +50,7 @@ class AuthControllerTest {
     }
 
     private LoginRequest loginReq(String username, String password) {
-        return com.wille.erp.support.LoginTestRequests.encrypted(loginCryptoService, username, password);
+        return com.wille.erp.support.LoginTestRequests.encrypted(passwordCryptoService, username, password);
     }
 
     @Test

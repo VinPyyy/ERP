@@ -18,9 +18,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 登录密码传输加密：RSA-OAEP 往返、nonce 一次性、时间戳窗口、密文与 nonce 绑定。
  */
-class LoginCryptoServiceTest {
+class PasswordCryptoServiceTest {
 
-    private final LoginCryptoService service = new LoginCryptoService();
+    private final PasswordCryptoService service = new PasswordCryptoService();
 
     /** 与前端 node-forge / 浏览器 WebCrypto 相同的参数：OAEP SHA-256 + MGF1-SHA1（Java 默认） */
     private static String encrypt(String publicKeyPem, String payload) throws Exception {
@@ -63,7 +63,7 @@ class LoginCryptoServiceTest {
         service.verifyAndDecrypt(ch.nonce(), System.currentTimeMillis(), cipher);
 
         assertThatThrownBy(() -> service.verifyAndDecrypt(ch.nonce(), System.currentTimeMillis(), cipher))
-                .satisfies(LoginCryptoServiceTest::assertChallengeInvalid);
+                .satisfies(PasswordCryptoServiceTest::assertChallengeInvalid);
     }
 
     @Test
@@ -72,7 +72,7 @@ class LoginCryptoServiceTest {
         String cipher = encrypt(ch.publicKey(), "deadbeef" + ".pwd");
 
         assertThatThrownBy(() -> service.verifyAndDecrypt("deadbeef", System.currentTimeMillis(), cipher))
-                .satisfies(LoginCryptoServiceTest::assertChallengeInvalid);
+                .satisfies(PasswordCryptoServiceTest::assertChallengeInvalid);
     }
 
     @Test
@@ -82,7 +82,7 @@ class LoginCryptoServiceTest {
         long stale = System.currentTimeMillis() - 10 * 60 * 1000L;
 
         assertThatThrownBy(() -> service.verifyAndDecrypt(ch.nonce(), stale, cipher))
-                .satisfies(LoginCryptoServiceTest::assertChallengeInvalid);
+                .satisfies(PasswordCryptoServiceTest::assertChallengeInvalid);
     }
 
     @Test
@@ -93,7 +93,7 @@ class LoginCryptoServiceTest {
         CryptoChallenge fresh = service.issue();
 
         assertThatThrownBy(() -> service.verifyAndDecrypt(fresh.nonce(), System.currentTimeMillis(), staleCipher))
-                .satisfies(LoginCryptoServiceTest::assertChallengeInvalid);
+                .satisfies(PasswordCryptoServiceTest::assertChallengeInvalid);
     }
 
     @Test
@@ -102,6 +102,6 @@ class LoginCryptoServiceTest {
 
         assertThatThrownBy(() -> service.verifyAndDecrypt(
                 ch.nonce(), System.currentTimeMillis(), Base64.getEncoder().encodeToString(new byte[]{1, 2, 3})))
-                .satisfies(LoginCryptoServiceTest::assertChallengeInvalid);
+                .satisfies(PasswordCryptoServiceTest::assertChallengeInvalid);
     }
 }

@@ -76,6 +76,10 @@ public class UserService {
         if (newRawPassword == null || newRawPassword.isBlank()) {
             throw new BizException(ErrorCode.PARAM_INVALID, "新密码不能为空");
         }
+        if (newRawPassword.length() < 6) {
+            // 长度校验从 DTO @Size 移到此处：DTO 里只有密文，解密后才能见到真实长度
+            throw new BizException(ErrorCode.PARAM_INVALID, "密码至少 6 位");
+        }
         user.setPassword(passwordEncoder.encode(newRawPassword));
         userMapper.updateById(user);
     }

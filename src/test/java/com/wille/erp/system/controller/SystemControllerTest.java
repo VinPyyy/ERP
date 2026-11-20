@@ -41,13 +41,19 @@ class SystemControllerTest {
     private ObjectMapper objectMapper;
     @Autowired
     private com.wille.erp.system.api.ConfigService configService;
+    @Autowired
+    private com.wille.erp.system.service.PasswordCryptoService passwordCryptoService;
 
-    private String adminToken() throws Exception {
-        var request = new UserSaveRequest();
+    private String loginToken(String username, String password) throws Exception {
         String body = mockMvc.perform(post("/api/auth/login").contentType(JSON)
-                        .content("{\"username\":\"admin\",\"password\":\"admin123\"}"))
+                        .content(objectMapper.writeValueAsString(com.wille.erp.support.LoginTestRequests
+                                .encrypted(passwordCryptoService, username, password))))
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body).path("data").path("token").asText();
+    }
+
+    private String adminToken() throws Exception {
+        return loginToken("admin", "admin123");
     }
 
     @AfterEach
@@ -91,7 +97,9 @@ class SystemControllerTest {
                 .andExpect(jsonPath("$.code").value(0));
 
         mockMvc.perform(put("/api/system/users/" + id + "/password").header("Authorization", token)
-                        .contentType(JSON).content("{\"password\":\"newpwd9\"}"))
+                        .contentType(JSON)
+                        .content(objectMapper.writeValueAsString(com.wille.erp.support.LoginTestRequests
+                                .encryptedReset(passwordCryptoService, "newpwd9"))))
                 .andExpect(jsonPath("$.code").value(0));
 
         mockMvc.perform(delete("/api/system/users/" + id).header("Authorization", token))
@@ -112,6 +120,38 @@ class SystemControllerTest {
     }
 
     @Test
+    void resetPasswordReplayAndShortPasswordRejected() throws Exception {
+        String token = adminToken();
+        UserSaveRequest create = new UserSaveRequest();
+        create.setUsername("rpw01");
+        create.setPassword("pwd123");
+        create.setRoleIds(List.of(3L));
+        create.setWarehouseIds(List.of(0L));
+        String created = mockMvc.perform(post("/api/system/users").header("Authorization", token)
+                        .contentType(JSON).content(objectMapper.writeValueAsString(create)))
+                .andReturn().getResponse().getContentAsString();
+        long id = objectMapper.readTree(created).path("data").asLong();
+
+        var request = com.wille.erp.support.LoginTestRequests.encryptedReset(passwordCryptoService, "newpwd9");
+        String json = objectMapper.writeValueAsString(request);
+        mockMvc.perform(put("/api/system/users/" + id + "/password").header("Authorization", token)
+                        .contentType(JSON).content(json))
+                .andExpect(jsonPath("$.code").value(0));
+
+        // 同一 nonce 重放：挑战一次性，拒绝
+        mockMvc.perform(put("/api/system/users/" + id + "/password").header("Authorization", token)
+                        .contentType(JSON).content(json))
+                .andExpect(jsonPath("$.code").value(ErrorCode.LOGIN_CHALLENGE_INVALID));
+
+        // 解密后长度不足 6 位：PARAM_INVALID
+        var shortPwd = objectMapper.writeValueAsString(
+                com.wille.erp.support.LoginTestRequests.encryptedReset(passwordCryptoService, "123"));
+        mockMvc.perform(put("/api/system/users/" + id + "/password").header("Authorization", token)
+                        .contentType(JSON).content(shortPwd))
+                .andExpect(jsonPath("$.code").value(ErrorCode.PARAM_INVALID));
+    }
+
+    @Test
     void salesRoleUserForbiddenOnUserManagement() throws Exception {
         // 非 admin（SALES 角色无 system:user:list 权限点）→ HTTP 403
         String createBody = objectMapper.writeValueAsString(java.util.Map.of(
@@ -120,10 +160,7 @@ class SystemControllerTest {
         mockMvc.perform(post("/api/system/users").header("Authorization", adminToken())
                 .contentType(JSON).content(createBody));
 
-        String login = mockMvc.perform(post("/api/auth/login").contentType(JSON)
-                        .content("{\"username\":\"sales01\",\"password\":\"pwd123\"}"))
-                .andReturn().getResponse().getContentAsString();
-        String token = objectMapper.readTree(login).path("data").path("token").asText();
+        String token = loginToken("sales01", "pwd123");
 
         mockMvc.perform(get("/api/system/users").header("Authorization", token))
                 .andExpect(status().isForbidden());

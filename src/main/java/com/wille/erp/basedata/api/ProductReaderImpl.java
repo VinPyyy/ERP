@@ -35,7 +35,7 @@ public class ProductReaderImpl implements ProductReader {
 
     @Override
     public List<Long> searchIds(String keyword) {
-        return searchByName(keyword, 50).stream().map(BaseProduct::getId).toList();
+        return searchByName(keyword, 200).stream().map(BaseProduct::getId).toList();
     }
 
     private static ProductInfo toInfo(BaseProduct product) {

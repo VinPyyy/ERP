@@ -200,6 +200,134 @@ class InventoryQueryServiceTest {
     }
 
     @Test
+    void pageFlowsWithoutFilterOk() {
+        // 审查 C1：无 bizType 的默认加载不得 NPE
+        BaseWarehouse wh = dataFactory.warehouse("QW-NOF");
+        BaseProduct p = dataFactory.product("QP-NOF", MgmtMode.NONE);
+        seedStock(wh, p, "10", "5");
+
+        var page = queryService.pageFlows(new FlowQuery());
+        assertThat(page.getRecords()).isNotEmpty();
+    }
+
+    @Test
+    void illegalBizTypeRejected() {
+        FlowQuery q = new FlowQuery();
+        q.setBizType("NOT_A_TYPE");
+        assertThatThrownBy(() -> queryService.pageFlows(q))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("业务类型");
+    }
+
+    @Test
+    void flowCostColumnsMaskedWithoutPerm() {
+        BaseWarehouse wh = dataFactory.warehouse("QW-FMASK");
+        BaseProduct p = dataFactory.product("QP-FMASK", MgmtMode.NONE);
+        seedStock(wh, p, "10", "5");
+
+        dataFactory.roleWithPerms("R_QFLOW", "流水无成本", "inventory:flow:list");
+        var u = dataFactory.user("qflow01", "pwd123", "R_QFLOW");
+        dataFactory.bindWarehouses(u.getId(), 0L);
+        loginAs("qflow01");
+
+        var flow = queryService.pageFlows(new FlowQuery()).getRecords().stream()
+                .filter(f -> f.getSkuId().equals(p.getId())).findFirst().orElseThrow();
+        assertThat(flow.getQty()).isEqualByComparingTo(new BigDecimal("10"));
+        assertThat(flow.getBalanceQty()).isEqualByComparingTo(new BigDecimal("10"));
+        assertThat(flow.getCostPrice()).isNull();
+        assertThat(flow.getCostAmount()).isNull();
+        assertThat(flow.getBalanceCostAmount()).isNull();
+        assertThat(flow.getBalanceCostPrice()).isNull();
+    }
+
+    @Test
+    void adjustSnRequiresSourceWarehouseVisible() {
+        // 审查 C3：绑仓 A 用户不得调整仓 B 的在库 SN
+        BaseWarehouse whA = dataFactory.warehouse("QW-XA");
+        BaseWarehouse whB = dataFactory.warehouse("QW-XB");
+        BaseProduct p = dataFactory.product("QP-XB", MgmtMode.SN);
+        stockService.inbound(new MoveCmd(whB.getId(),
+                new BizRef(BizType.PUR_IN, DocType.PUR_INBOUND, 9L, "X-IN"),
+                List.of(new MoveLine(p.getId(), new BigDecimal("1"), new BigDecimal("9"), null, List.of("XSN"), 1L))));
+        InvSn sn = snMapper.selectOne(com.baomidou.mybatisplus.core.toolkit.Wrappers.<InvSn>lambdaQuery()
+                .eq(InvSn::getSnCode, "XSN"));
+
+        dataFactory.roleWithPerms("R_QADJ", "SN调整", "inventory:sn:adjust", "inventory:stock:list");
+        var u = dataFactory.user("qadj01", "pwd123", "R_QADJ");
+        dataFactory.bindWarehouses(u.getId(), whA.getId());
+        loginAs("qadj01");
+
+        SnAdjustRequest req = new SnAdjustRequest();
+        req.setStatus("OUT");
+        req.setReason("越权尝试");
+        assertThatThrownBy(() -> queryService.adjustSn(sn.getId(), req))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(com.wille.erp.common.api.ErrorCode.NO_PERMISSION);
+    }
+
+    @Test
+    void adjustSnRejectsInactiveWarehouse() {
+        // 审查 I3：回库目标仓必须存在且启用（admin 也要过）
+        BaseWarehouse wh = dataFactory.warehouse("QW-GH");
+        BaseProduct p = dataFactory.product("QP-GH", MgmtMode.SN);
+        stockService.inbound(new MoveCmd(wh.getId(),
+                new BizRef(BizType.PUR_IN, DocType.PUR_INBOUND, 10L, "GH-IN"),
+                List.of(new MoveLine(p.getId(), new BigDecimal("1"), new BigDecimal("9"), null, List.of("GHSN"), 1L))));
+        InvSn sn = snMapper.selectOne(com.baomidou.mybatisplus.core.toolkit.Wrappers.<InvSn>lambdaQuery()
+                .eq(InvSn::getSnCode, "GHSN"));
+        stockService.outbound(new MoveCmd(wh.getId(),
+                new BizRef(BizType.SALE_OUT, DocType.SAL_OUTBOUND, 11L, "GH-OUT"),
+                List.of(new MoveLine(p.getId(), new BigDecimal("1"), null, null, List.of("GHSN"), 1L))));
+
+        SnAdjustRequest req = new SnAdjustRequest();
+        req.setStatus("IN_STOCK");
+        req.setWarehouseId(987654321L);
+        req.setReason("幽灵仓测试");
+        assertThatThrownBy(() -> queryService.adjustSn(sn.getId(), req))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("仓库");
+    }
+
+    @Test
+    void adjustSnAuditsOperator() {
+        // 审查 I4：update_by/update_time 必须刷新（实体更新走审计填充）
+        BaseWarehouse wh = dataFactory.warehouse("QW-AUD");
+        BaseProduct p = dataFactory.product("QP-AUD", MgmtMode.SN);
+        stockService.inbound(new MoveCmd(wh.getId(),
+                new BizRef(BizType.PUR_IN, DocType.PUR_INBOUND, 12L, "AUD-IN"),
+                List.of(new MoveLine(p.getId(), new BigDecimal("1"), new BigDecimal("9"), null, List.of("AUDSN"), 1L))));
+        InvSn sn = snMapper.selectOne(com.baomidou.mybatisplus.core.toolkit.Wrappers.<InvSn>lambdaQuery()
+                .eq(InvSn::getSnCode, "AUDSN"));
+
+        SnAdjustRequest req = new SnAdjustRequest();
+        req.setStatus("OUT");
+        req.setReason("寄样");
+        queryService.adjustSn(sn.getId(), req);
+
+        assertThat(snMapper.selectById(sn.getId()).getUpdateBy()).isEqualTo(1L);
+    }
+
+    @Test
+    void stocksWarehouseFilterIntersectsScope() {
+        // 审查 I1：warehouseId 参数接线且与 scope 取交集
+        BaseWarehouse whA = dataFactory.warehouse("QW-FA");
+        BaseWarehouse whB = dataFactory.warehouse("QW-FB");
+        BaseProduct p = dataFactory.product("QP-FILTER", MgmtMode.NONE);
+        seedStock(whA, p, "5", "2");
+        seedStock(whB, p, "7", "2");
+
+        StockQuery qa = new StockQuery();
+        qa.setWarehouseId(whA.getId());
+        assertThat(queryService.pageStocks(qa).getRecords())
+                .allSatisfy(r -> assertThat(r.getWarehouseId()).isEqualTo(whA.getId()));
+
+        StockQuery qb = new StockQuery();
+        qb.setWarehouseId(999999999L);
+        assertThat(queryService.pageStocks(qb).getRecords()).isEmpty();
+    }
+
+    @Test
     void flowsFilterByBizTypeAndDate() {
         BaseWarehouse wh = dataFactory.warehouse("QW-FL");
         BaseProduct p = dataFactory.product("QP-FL", MgmtMode.NONE);

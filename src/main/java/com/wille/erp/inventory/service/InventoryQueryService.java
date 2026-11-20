@@ -3,8 +3,10 @@ package com.wille.erp.inventory.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wille.erp.basedata.api.ProductReader;
+import com.wille.erp.basedata.api.WarehouseReader;
 import com.wille.erp.common.api.ErrorCode;
 import com.wille.erp.common.api.PageResult;
+import com.wille.erp.common.enums.BizType;
 import com.wille.erp.common.enums.SnStatus;
 import com.wille.erp.common.exception.BizException;
 import com.wille.erp.inventory.dto.FlowQuery;
@@ -35,13 +37,15 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 库存查询（M3c 任务 1）：汇总→批次→SN 三级 + 流水 + SN 人工调整。
- * 仓库数据权限一律经 CurrentUserHolder.warehouseScope()（spec §5）；
- * 成本列按 inventory:cost:view 后端置 null（脱敏在服务端，非前端隐藏）。
+ * 库存查询（M3c）：汇总→批次→SN 三级 + 流水 + SN 人工调整。
+ * 数据权限：读端点一律 warehouseScope()（null=全部、空集=查空、参数与 scope 取交集）；
+ * 成本列（stocks 与 flows）按 inventory:cost:view 服务端置 null（审查 C2 裁决：流水同口径）。
  */
 @Service
 @RequiredArgsConstructor
 public class InventoryQueryService {
+
+    private static final int KEYWORD_HIT_LIMIT = 200;
 
     private final InvStockMapper stockMapper;
     private final InvLotStockMapper lotStockMapper;
@@ -49,6 +53,7 @@ public class InventoryQueryService {
     private final InvSnMapper snMapper;
     private final InvFlowMapper flowMapper;
     private final ProductReader productReader;
+    private final WarehouseReader warehouseReader;
     private final CurrentUserHolder currentUser;
 
     public PageResult<StockVO> pageStocks(StockQuery query) {
@@ -59,6 +64,9 @@ public class InventoryQueryService {
         List<Long> skuIds = null;
         if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
             skuIds = productReader.searchIds(query.getKeyword().trim());
+            if (skuIds.size() >= KEYWORD_HIT_LIMIT) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "关键字命中商品过多，请缩小范围");
+            }
             if (skuIds.isEmpty()) {
                 return emptyPage();
             }
@@ -67,6 +75,7 @@ public class InventoryQueryService {
                 new Page<>(query.getPageNum(), query.getPageSize()),
                 Wrappers.<InvStock>lambdaQuery()
                         .in(scope != null, InvStock::getWarehouseId, scope == null ? List.of() : scope)
+                        .eq(query.getWarehouseId() != null, InvStock::getWarehouseId, query.getWarehouseId())
                         .in(skuIds != null, InvStock::getSkuId, skuIds == null ? List.of() : skuIds)
                         .orderByAsc(InvStock::getWarehouseId)
                         .orderByAsc(InvStock::getSkuId));
@@ -87,6 +96,8 @@ public class InventoryQueryService {
                 vo.setSkuCode(p.skuCode());
                 vo.setSkuName(p.name());
                 vo.setUnit(p.unit());
+                vo.setLotManaged(p.lotManaged());
+                vo.setSnManaged(p.snManaged());
             }
             return vo;
         }).toList();
@@ -94,10 +105,7 @@ public class InventoryQueryService {
     }
 
     public List<LotStockVO> lotStocks(Long warehouseId, Long skuId) {
-        Set<Long> scope = currentUser.warehouseScope();
-        if (scope != null && !scope.contains(warehouseId)) {
-            throw new BizException(ErrorCode.NO_PERMISSION, "无该仓库数据权限");
-        }
+        requireWarehouseVisible(warehouseId);
         return lotStockMapper.selectList(Wrappers.<InvLotStock>lambdaQuery()
                         .eq(InvLotStock::getWarehouseId, warehouseId)
                         .eq(InvLotStock::getSkuId, skuId)
@@ -125,7 +133,9 @@ public class InventoryQueryService {
                 new Page<>(query.getPageNum(), query.getPageSize()),
                 Wrappers.<InvSn>lambdaQuery()
                         .in(scope != null, InvSn::getWarehouseId, scope == null ? List.of() : scope)
+                        .eq(query.getWarehouseId() != null, InvSn::getWarehouseId, query.getWarehouseId())
                         .eq(query.getSkuId() != null, InvSn::getSkuId, query.getSkuId())
+                        .eq(query.getLotId() != null, InvSn::getLotId, query.getLotId())
                         .eq(query.getStatus() != null && !query.getStatus().isBlank(),
                                 InvSn::getStatus, parseStatus(query.getStatus()))
                         .orderByDesc(InvSn::getId));
@@ -151,13 +161,14 @@ public class InventoryQueryService {
         if (scope != null && scope.isEmpty()) {
             return emptyPage();
         }
+        BizType bizType = parseBizType(query.getBizType());
         Page<InvFlow> page = flowMapper.selectPage(
                 new Page<>(query.getPageNum(), query.getPageSize()),
                 Wrappers.<InvFlow>lambdaQuery()
                         .in(scope != null, InvFlow::getWarehouseId, scope == null ? List.of() : scope)
+                        .eq(query.getWarehouseId() != null, InvFlow::getWarehouseId, query.getWarehouseId())
                         .eq(query.getSkuId() != null, InvFlow::getSkuId, query.getSkuId())
-                        .eq(query.getBizType() != null && !query.getBizType().isBlank(),
-                                InvFlow::getBizType, parseBizType(query.getBizType()))
+                        .eq(bizType != null, InvFlow::getBizType, bizType)
                         .like(query.getBizDocNo() != null && !query.getBizDocNo().isBlank(),
                                 InvFlow::getBizDocNo, query.getBizDocNo())
                         .ge(query.getStartDate() != null, InvFlow::getCreateTime,
@@ -165,6 +176,7 @@ public class InventoryQueryService {
                         .le(query.getEndDate() != null, InvFlow::getCreateTime,
                                 query.getEndDate() == null ? null : LocalDateTime.of(query.getEndDate(), LocalTime.MAX))
                         .orderByDesc(InvFlow::getId));
+        boolean canViewCost = currentUser.hasPerm("inventory:cost:view");
         return new PageResult<>(page.getTotal(), page.getRecords().stream().map(row -> {
             FlowVO vo = new FlowVO();
             vo.setId(row.getId());
@@ -172,15 +184,17 @@ public class InventoryQueryService {
             vo.setSkuId(row.getSkuId());
             vo.setLotId(row.getLotId());
             vo.setQty(row.getQty());
-            vo.setPrice(row.getPrice());
-            vo.setCostPrice(row.getCostPrice());
-            vo.setCostAmount(row.getCostAmount());
+            vo.setPrice(canViewCost ? row.getPrice() : null);
             vo.setBalanceQty(row.getBalanceQty());
-            vo.setBalanceCostAmount(row.getBalanceCostAmount());
-            vo.setBalanceCostPrice(row.getBalanceCostPrice());
             vo.setBizType(row.getBizType() == null ? null : row.getBizType().name());
             vo.setBizDocNo(row.getBizDocNo());
             vo.setCreateTime(row.getCreateTime());
+            if (canViewCost) {
+                vo.setCostPrice(row.getCostPrice());
+                vo.setCostAmount(row.getCostAmount());
+                vo.setBalanceCostAmount(row.getBalanceCostAmount());
+                vo.setBalanceCostPrice(row.getBalanceCostPrice());
+            }
             ProductReader.ProductInfo p = productReader.read(row.getSkuId());
             if (p != null) {
                 vo.setSkuCode(p.skuCode());
@@ -190,7 +204,12 @@ public class InventoryQueryService {
         }).toList());
     }
 
-    /** SN 人工调整（spec §8-9）：仅状态/仓库 + 原因留痕；数量差由盘点修正，不写流水 */
+    /**
+     * SN 人工调整（spec §8-9）：逃生门操作，写侧数据权限从严（审查 C3）——
+     * 在库 SN 的源仓必须在调用者 scope 内；已出库 SN（warehouse=NULL）仅全仓用户（admin）可调（裁决：
+     * 出库态归属需按单据追溯，绑仓用户经销售退货处理更正确）；回库目标仓必须存在且启用（I3）。
+     * 用实体更新以触发 update_by/update_time 审计填充（I4）。
+     */
     public void adjustSn(Long id, SnAdjustRequest request) {
         if (request.getReason() == null || request.getReason().isBlank()) {
             throw new BizException(ErrorCode.PARAM_INVALID, "调整原因必填");
@@ -203,19 +222,39 @@ public class InventoryQueryService {
         if (target == null) {
             throw new BizException(ErrorCode.PARAM_INVALID, "状态只能为 IN_STOCK 或 OUT");
         }
-        if (target == SnStatus.IN_STOCK) {
-            Set<Long> scope = currentUser.warehouseScope();
-            if (request.getWarehouseId() == null
-                    || (scope != null && !scope.contains(request.getWarehouseId()))) {
-                throw new BizException(ErrorCode.PARAM_INVALID, "回库必须指定可见仓库");
+        Set<Long> scope = currentUser.warehouseScope();
+        if (scope != null) {
+            if (sn.getWarehouseId() == null || !scope.contains(sn.getWarehouseId())) {
+                throw new BizException(ErrorCode.NO_PERMISSION, "无该 SN 所在仓库的数据权限");
             }
         }
-        snMapper.update(null, Wrappers.<InvSn>lambdaUpdate()
-                .eq(InvSn::getId, id)
-                .set(InvSn::getStatus, target)
-                .set(target == SnStatus.IN_STOCK, InvSn::getWarehouseId, request.getWarehouseId())
-                .set(target == SnStatus.OUT, InvSn::getWarehouseId, null)
-                .set(InvSn::getRemark, request.getReason()));
+        if (target == SnStatus.IN_STOCK) {
+            if (request.getWarehouseId() == null || !warehouseReader.existsActive(request.getWarehouseId())) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "回库仓库不存在或已停用");
+            }
+            if (scope != null && !scope.contains(request.getWarehouseId())) {
+                throw new BizException(ErrorCode.NO_PERMISSION, "无回库目标仓库的数据权限");
+            }
+        }
+        sn.setStatus(target);
+        sn.setRemark(request.getReason());
+        if (target == SnStatus.IN_STOCK) {
+            sn.setWarehouseId(request.getWarehouseId());
+        }
+        snMapper.updateById(sn);
+        if (target == SnStatus.OUT) {
+            // updateById 忽略 null 字段，出库清空仓库需显式 set（审计字段已由上一步刷新）
+            snMapper.update(null, Wrappers.<InvSn>lambdaUpdate()
+                    .eq(InvSn::getId, id)
+                    .set(InvSn::getWarehouseId, null));
+        }
+    }
+
+    private void requireWarehouseVisible(Long warehouseId) {
+        Set<Long> scope = currentUser.warehouseScope();
+        if (scope != null && !scope.contains(warehouseId)) {
+            throw new BizException(ErrorCode.NO_PERMISSION, "无该仓库数据权限");
+        }
     }
 
     private static SnStatus parseStatus(String raw) {
@@ -229,11 +268,14 @@ public class InventoryQueryService {
         }
     }
 
-    private static com.wille.erp.common.enums.BizType parseBizType(String raw) {
-        try {
-            return com.wille.erp.common.enums.BizType.valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
+    private static BizType parseBizType(String raw) {
+        if (raw == null || raw.isBlank()) {
             return null;
+        }
+        try {
+            return BizType.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "业务类型非法: " + raw);
         }
     }
 
@@ -243,5 +285,4 @@ public class InventoryQueryService {
         result.setRecords(List.of());
         return result;
     }
-
 }

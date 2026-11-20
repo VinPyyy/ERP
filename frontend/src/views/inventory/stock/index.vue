@@ -44,6 +44,14 @@
         <el-table-column prop="availableQty" label="可用量" width="100" />
         <el-table-column v-if="canViewCost" prop="costPrice" label="均价" width="110" />
         <el-table-column v-if="canViewCost" prop="costAmount" label="成本金额" width="120" />
+        <el-table-column label="SN" width="80">
+          <template #default="{ row }">
+            <el-button v-if="row.snManaged && !row.lotManaged" link type="primary" @click="openSns(row, null)">
+              <template #icon><View /></template>
+              查看
+            </el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <el-pagination
@@ -122,12 +130,17 @@ const snVisible = ref(false)
 const snContext = ref('')
 const snRows = ref<SnVO[]>([])
 
-async function openSns(stock: StockRow, lot: LotStockVO) {
-  snContext.value = `${stock.skuCode} / ${lot.lotNo ?? '-'}`
-  const page = await inventoryApi.sns({ skuId: stock.skuId, warehouseId: stock.warehouseId, pageSize: 200 })
-  snRows.value = lot.lotId
-    ? page.records.filter((s) => s.lotId === lot.lotId)
-    : page.records
+async function openSns(stock: StockRow, lot: LotStockVO | null) {
+  snContext.value = lot ? `${stock.skuCode} / ${lot.lotNo ?? '-'}` : `${stock.skuCode} 在库 SN`
+  // 服务端过滤：仓库×SKU×批次×在库（审查 I2：跨仓混入与 200 截断修复）
+  const page = await inventoryApi.sns({
+    skuId: stock.skuId,
+    warehouseId: stock.warehouseId,
+    lotId: lot?.lotId,
+    status: 'IN_STOCK',
+    pageSize: 200
+  })
+  snRows.value = page.records
   snVisible.value = true
 }
 

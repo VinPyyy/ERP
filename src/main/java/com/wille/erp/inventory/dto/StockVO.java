@@ -17,4 +17,7 @@ public class StockVO {
     /** 无 inventory:cost:view 时为 null（后端脱敏） */
     private BigDecimal costPrice;
     private BigDecimal costAmount;
+    /** 下钻路由用：批次/SN 管理形态 */
+    private boolean lotManaged;
+    private boolean snManaged;
 }

@@ -9,4 +9,6 @@ import lombok.EqualsAndHashCode;
 public class StockQuery extends PageQuery {
     /** 商品编码/名称模糊 */
     private String keyword;
+    /** 与用户可见仓库 scope 取交集 */
+    private Long warehouseId;
 }

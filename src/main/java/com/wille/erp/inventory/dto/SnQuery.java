@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 public class SnQuery extends PageQuery {
     private Long skuId;
     private Long warehouseId;
+    private Long lotId;
     /** IN_STOCK / OUT */
     private String status;
 }

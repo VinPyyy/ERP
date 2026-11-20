@@ -67,6 +67,6 @@
 
 ## 10. 验证记录（2026-11-21）
 
-- `mvn test` **174/174**（M3 新增 ≈71 例：均价 6、move 10、lock 6、property 200 步、对账 4、期初 15+5、Excel 5、查询 8、并发 2）
+- `mvn test` **174/174**（M3 新增 88 例：均价 6、move 10、lock 6、property 200 步、对账 4、期初 15+5、Excel 5、查询 8、并发 2）
 - `npm run build` 绿；`node scripts/smoke/inventory-smoke.cjs` 11/11（连续两次，runid 隔离）；`auth-smoke.cjs` 回归 12/12
 - 最终审查：M3a（0C/10I 全修）、M3b（1C/9I 全修）；M3c 审查见账本

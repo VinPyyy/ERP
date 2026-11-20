@@ -23,8 +23,12 @@
         </el-table-column>
         <el-table-column prop="auditTime" label="审核时间" width="170" />
         <el-table-column prop="voidReason" label="作废原因" min-width="140" />
-        <el-table-column label="操作" width="260" fixed="right">
+        <el-table-column label="操作" width="330" fixed="right">
           <template #default="{ row }">
+            <el-button link type="primary" @click="viewItems(row)">
+              <template #icon><View /></template>
+              明细
+            </el-button>
             <el-button v-perm="'inventory:opening:import'" link type="primary" :disabled="row.status !== 10" @click="openImport(row)">
               <template #icon><Upload /></template>
               导入
@@ -101,7 +105,28 @@
         </template>
       </template>
       <template #footer>
+        <el-link :href="templateUrl" target="_blank" type="primary" class="tpl-link">下载导入模板</el-link>
         <el-button @click="importVisible = false">
+          <template #icon><Close /></template>
+          关闭
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="itemsVisible" :title="`期初明细：${itemsDocNo}`" width="720px">
+      <el-table :data="itemsRows" class="erp-table" size="small">
+        <el-table-column prop="lineNo" label="行号" width="60" />
+        <el-table-column prop="skuName" label="商品" min-width="140" />
+        <el-table-column prop="qty" label="数量" width="90" />
+        <el-table-column prop="costPrice" label="期初均价" width="100" />
+        <el-table-column prop="costAmount" label="期初金额" width="110" />
+        <el-table-column prop="lotNo" label="批号" width="100" />
+        <el-table-column label="SN" min-width="140">
+          <template #default="{ row }">{{ row.snList?.join(', ') }}</template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="itemsVisible = false">
           <template #icon><Close /></template>
           关闭
         </el-button>
@@ -113,7 +138,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { openingApi, type OpeningVO } from '@/api/inventory'
+import { openingApi, type OpeningItemVO, type OpeningVO } from '@/api/inventory'
+
+const templateUrl = openingApi.templateUrl
 import { warehouseApi, type WarehouseVO } from '@/api/basedata'
 import { useTable } from '@/composables/useTable'
 import PageHeader from '@/components/PageHeader.vue'
@@ -172,6 +199,17 @@ async function doImport(opt: { file: File }) {
   if (importResult.value.errors.length === 0) {
     await load()
   }
+}
+
+const itemsVisible = ref(false)
+const itemsDocNo = ref('')
+const itemsRows = ref<OpeningItemVO[]>([])
+
+async function viewItems(row: OpeningVO) {
+  const doc = await openingApi.get(row.id)
+  itemsDocNo.value = doc.docNo
+  itemsRows.value = doc.items ?? []
+  itemsVisible.value = true
 }
 
 async function audit(row: OpeningVO) {

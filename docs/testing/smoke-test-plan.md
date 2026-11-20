@@ -66,6 +66,8 @@
 | 08 | 重复期初审核 | 10001 含"期初" | `duplicateOpeningRowRejected` |
 | 09 | replay-check | consistent=true | `FlowReplayCheckerTest` |
 | 10-11 | 作废（原因必填）→ 归零且对账仍干净 | qty=0 consistent | `voidReversesBySnapshot` |
+| 12-13 | LOT_SN 商品期初审核 → 三级一致（汇总=批次SUM=SN COUNT=2） | 三值相等 | 审查 I5 补位（`lotManagedRequiresLotAndKeepsInvariant` 的冒烟层镜像） |
+| 14 | 批次期初作废 → SN 翻回 OUT、批次行归零、对账干净 | consistent=true | `voidLotManagedOpeningReversesLotStock` |
 
 **副作用**：runid 后缀仓库/商品行留在 dev 库（名称唯一不互踩）；期初全部最终作废，库存净变化 0。
 

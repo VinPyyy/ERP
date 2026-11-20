@@ -27,6 +27,6 @@ Spec: ../spec.md（§2.3 inventory 表、§3a/3b/3c/3f 模型规则、§6-M3）�
 
 ## Comments
 
-## Comments
+## Comments（续）
 
 - 2026-11-21 完成。三计划拆分执行（docs/superpowers/plans/2026-11-20-m3{a,b,c}-*.md），最终审查 M3a 0C/10I、M3b 1C/9I 全修；验收锚点全绿：均价手算样例、property 200 步、期初导入审核三层正确、重复拒绝、replay-check 零差异、SN 三态。冒烟 inventory-smoke 11/11 已落地。已知偏差与延后项见 docs/inventory/stock-model.md §9 与 .superpowers 账本。

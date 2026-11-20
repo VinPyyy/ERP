@@ -93,7 +93,7 @@ public class OpeningService {
             throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "单据状态已变化，请刷新后重试");
         }
         List<InvOpeningItem> items = itemsOf(id);
-        requireNoDuplicateOpening(doc, items);
+        requireNoDuplicateSkus(doc, items.stream().map(InvOpeningItem::getSkuId).collect(Collectors.toSet()));
 
         List<MoveLine> lines = items.stream().map(item -> new MoveLine(
                 item.getSkuId(), item.getQty(), item.getCostPrice(),
@@ -172,8 +172,21 @@ public class OpeningService {
         }
     }
 
+    /**
+     * Excel 导入落地入口（M3b 任务 2）：草稿态全量替换行 + 与非作废他单查重。
+     * 重复期初约束双入口都挡（账本预扫描裁决）。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void importItems(Long docId, List<OpeningItemRequest> items) {
+        InvOpening doc = requireOpening(docId);
+        requireDraft(doc);
+        validateItems(items);
+        requireNoDuplicateSkus(doc, items.stream().map(OpeningItemRequest::getSkuId).collect(Collectors.toSet()));
+        replaceItems(docId, items);
+    }
+
     /** 同仓库×SKU 仅一张非作废期初行（spec §2.3 应用层约束） */
-    private void requireNoDuplicateOpening(InvOpening doc, List<InvOpeningItem> items) {
+    private void requireNoDuplicateSkus(InvOpening doc, Set<Long> skus) {
         List<Long> otherDocs = openingMapper.selectList(Wrappers.<InvOpening>lambdaQuery()
                         .eq(InvOpening::getWarehouseId, doc.getWarehouseId())
                         .ne(InvOpening::getStatus, DocStatus.VOIDED)
@@ -182,7 +195,6 @@ public class OpeningService {
         if (otherDocs.isEmpty()) {
             return;
         }
-        Set<Long> skus = items.stream().map(InvOpeningItem::getSkuId).collect(Collectors.toSet());
         Long clash = itemMapper.selectCount(Wrappers.<InvOpeningItem>lambdaQuery()
                 .in(InvOpeningItem::getDocId, otherDocs)
                 .in(InvOpeningItem::getSkuId, skus));

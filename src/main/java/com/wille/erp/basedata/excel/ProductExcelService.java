@@ -2,7 +2,7 @@ package com.wille.erp.basedata.excel;
 
 import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.wille.erp.basedata.dto.ImportResultVO;
+import com.wille.erp.common.api.ImportResultVO;
 import com.wille.erp.basedata.dto.ProductQuery;
 import com.wille.erp.basedata.entity.BaseCategory;
 import com.wille.erp.basedata.entity.BaseProduct;

@@ -11,6 +11,9 @@ public interface ProductReader {
     /** SKU 不存在返回 null（调用方校验） */
     ProductInfo read(Long skuId);
 
+    /** 按商品编码读取（Excel 导入解析用）；不存在返回 null */
+    ProductInfo readByCode(String skuCode);
+
     record ProductInfo(Long skuId, String skuCode, String name, String unit,
                        MgmtMode mgmtMode, Integer shelfLifeDays) {
         public boolean lotManaged() {

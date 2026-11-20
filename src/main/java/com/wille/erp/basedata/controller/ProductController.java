@@ -1,7 +1,7 @@
 package com.wille.erp.basedata.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
-import com.wille.erp.basedata.dto.ImportResultVO;
+import com.wille.erp.common.api.ImportResultVO;
 import com.wille.erp.basedata.dto.ProductQuery;
 import com.wille.erp.basedata.dto.ProductSaveRequest;
 import com.wille.erp.basedata.entity.BaseProduct;

@@ -1,4 +1,4 @@
-package com.wille.erp.basedata.dto;
+package com.wille.erp.common.api;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

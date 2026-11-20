@@ -23,6 +23,17 @@ public class ProductReaderImpl implements ProductReader {
         if (product == null) {
             return null;
         }
+        return toInfo(product);
+    }
+
+    @Override
+    public ProductInfo readByCode(String skuCode) {
+        BaseProduct product = productMapper.selectOne(Wrappers.<BaseProduct>lambdaQuery()
+                .eq(BaseProduct::getSkuCode, skuCode));
+        return product == null ? null : toInfo(product);
+    }
+
+    private static ProductInfo toInfo(BaseProduct product) {
         return new ProductInfo(product.getId(), product.getSkuCode(), product.getName(),
                 product.getUnit(), product.getMgmtMode(), product.getShelfLifeDays());
     }

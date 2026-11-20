@@ -1,7 +1,7 @@
 package com.wille.erp.basedata.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
-import com.wille.erp.basedata.dto.ImportResultVO;
+import com.wille.erp.common.api.ImportResultVO;
 import com.wille.erp.basedata.dto.PartnerQuery;
 import com.wille.erp.basedata.dto.PartnerSaveRequest;
 import com.wille.erp.basedata.entity.BaseCustomer;

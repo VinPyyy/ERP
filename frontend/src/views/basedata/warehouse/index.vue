@@ -1,15 +1,14 @@
 <template>
   <div class="erp-page">
-    <PageHeader title="仓库" accent="档案" subtitle="仓库是数据权限单位，建议控制在 10 个以内">
-      <template #extra>
-        <el-button v-perm="'basedata:warehouse:create'" type="primary" @click="openEdit(null)">
-          <template #icon><Plus /></template>
-          新增仓库
-        </el-button>
-      </template>
-    </PageHeader>
+    <PageHeader title="仓库" accent="档案" subtitle="仓库是数据权限单位，建议控制在 10 个以内" />
 
     <el-card shadow="never">
+    <div class="erp-toolbar">
+      <el-button v-perm="'basedata:warehouse:create'" type="primary" @click="openEdit(null)">
+        <template #icon><Plus /></template>
+        新增仓库
+      </el-button>
+    </div>
     <el-table v-loading="loading" :data="warehouses" class="erp-table">
       <el-table-column prop="code" label="编码" width="120" />
       <el-table-column prop="name" label="名称" min-width="140" />

@@ -17,6 +17,7 @@
               <span>{{ group.title }}</span>
             </template>
             <el-menu-item v-for="item in group.children" :key="item.path" :index="item.path">
+              <el-icon v-if="item.icon"><component :is="item.icon" /></el-icon>
               {{ item.title }}
             </el-menu-item>
           </el-sub-menu>
@@ -71,43 +72,43 @@ const router = useRouter()
 const menus: MenuItem[] = [
   {
     path: '/basedata', title: '基础资料', icon: 'Files', perm: 'basedata:menu', children: [
-      { path: '/basedata/product', title: '商品', perm: 'basedata:product:list' },
-      { path: '/basedata/customer', title: '客户', perm: 'basedata:customer:list' },
-      { path: '/basedata/supplier', title: '供应商', perm: 'basedata:supplier:list' },
-      { path: '/basedata/warehouse', title: '仓库', perm: 'basedata:warehouse:list' }
+      { path: '/basedata/product', title: '商品档案', icon: 'Goods', perm: 'basedata:product:list' },
+      { path: '/basedata/customer', title: '客户管理', icon: 'User', perm: 'basedata:customer:list' },
+      { path: '/basedata/supplier', title: '供应商管理', icon: 'OfficeBuilding', perm: 'basedata:supplier:list' },
+      { path: '/basedata/warehouse', title: '仓库档案', icon: 'House', perm: 'basedata:warehouse:list' }
     ]
   },
   {
     path: '/purchase', title: '采购管理', icon: 'ShoppingCart', perm: 'purchase:menu', children: [
-      { path: '/purchase/inquiry', title: '询价单', perm: 'purchase:inquiry:list' },
-      { path: '/purchase/order', title: '采购订单', perm: 'purchase:order:list' },
-      { path: '/purchase/inbound', title: '采购入库', perm: 'purchase:inbound:list' },
-      { path: '/purchase/return', title: '采购退货', perm: 'purchase:return:list' }
+      { path: '/purchase/inquiry', title: '询价单', icon: 'Search', perm: 'purchase:inquiry:list' },
+      { path: '/purchase/order', title: '采购订单', icon: 'Document', perm: 'purchase:order:list' },
+      { path: '/purchase/inbound', title: '采购入库', icon: 'Download', perm: 'purchase:inbound:list' },
+      { path: '/purchase/return', title: '采购退货', icon: 'RefreshLeft', perm: 'purchase:return:list' }
     ]
   },
   {
     path: '/sale', title: '销售管理', icon: 'Sell', perm: 'sale:menu', children: [
-      { path: '/sale/quote', title: '销售报价', perm: 'sale:quote:list' },
-      { path: '/sale/order', title: '销售订单', perm: 'sale:order:list' },
-      { path: '/sale/outbound', title: '销售出库', perm: 'sale:outbound:list' },
-      { path: '/sale/return', title: '销售退货', perm: 'sale:return:list' }
+      { path: '/sale/quote', title: '销售报价', icon: 'PriceTag', perm: 'sale:quote:list' },
+      { path: '/sale/order', title: '销售订单', icon: 'Tickets', perm: 'sale:order:list' },
+      { path: '/sale/outbound', title: '销售出库', icon: 'Upload', perm: 'sale:outbound:list' },
+      { path: '/sale/return', title: '销售退货', icon: 'RefreshRight', perm: 'sale:return:list' }
     ]
   },
   {
     path: '/inventory', title: '库存管理', icon: 'Box', perm: 'inventory:menu', children: [
-      { path: '/inventory/stock', title: '库存查询', perm: 'inventory:stock:list' },
-      { path: '/inventory/flow', title: '库存流水', perm: 'inventory:flow:list' },
-      { path: '/inventory/opening', title: '期初库存', perm: 'inventory:opening:list' },
-      { path: '/inventory/transfer', title: '调拨单', perm: 'inventory:transfer:list' },
-      { path: '/inventory/count', title: '盘点单', perm: 'inventory:count:list' }
+      { path: '/inventory/stock', title: '库存查询', icon: 'View', perm: 'inventory:stock:list' },
+      { path: '/inventory/flow', title: '库存流水', icon: 'List', perm: 'inventory:flow:list' },
+      { path: '/inventory/opening', title: '期初库存', icon: 'Coin', perm: 'inventory:opening:list' },
+      { path: '/inventory/transfer', title: '调拨单', icon: 'Switch', perm: 'inventory:transfer:list' },
+      { path: '/inventory/count', title: '盘点单', icon: 'CircleCheck', perm: 'inventory:count:list' }
     ]
   },
   {
     path: '/system', title: '系统管理', icon: 'Setting', perm: 'system:menu', children: [
-      { path: '/system/user', title: '用户', perm: 'system:user:list' },
-      { path: '/system/role', title: '角色', perm: 'system:role:list' },
-      { path: '/system/config', title: '系统参数', perm: 'system:config:list' },
-      { path: '/system/doc-no', title: '编号规则', perm: 'system:docno:list' }
+      { path: '/system/user', title: '用户管理', icon: 'UserFilled', perm: 'system:user:list' },
+      { path: '/system/role', title: '角色管理', icon: 'Key', perm: 'system:role:list' },
+      { path: '/system/config', title: '系统参数', icon: 'Tools', perm: 'system:config:list' },
+      { path: '/system/doc-no', title: '编号规则', icon: 'Memo', perm: 'system:docno:list' }
     ]
   }
 ]
@@ -170,8 +171,8 @@ async function onCommand(cmd: string) {
   display: grid;
   place-items: center;
   color: #fff;
-  background: linear-gradient(135deg, var(--erp-blue), var(--erp-violet));
-  box-shadow: 0 6px 14px -6px rgba(79, 70, 229, 0.55);
+  background: linear-gradient(135deg, var(--erp-blue-sky), var(--erp-blue));
+  box-shadow: 0 6px 14px -6px rgba(37, 99, 235, 0.55);
 }
 .menu {
   border-right: none;
@@ -252,7 +253,7 @@ async function onCommand(cmd: string) {
   place-items: center;
   font-size: 13px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--erp-blue), var(--erp-violet));
+  background: linear-gradient(135deg, var(--erp-blue-sky), var(--erp-blue));
 }
 .user-name {
   font-weight: 500;

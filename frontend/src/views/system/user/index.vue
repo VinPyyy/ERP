@@ -1,13 +1,6 @@
 <template>
   <div class="erp-page">
-    <PageHeader title="用户" accent="管理" subtitle="管理系统账号、角色分配与可见仓库">
-      <template #extra>
-        <el-button v-perm="'system:user:create'" type="primary" @click="openCreate">
-          <template #icon><Plus /></template>
-          新增用户
-        </el-button>
-      </template>
-    </PageHeader>
+    <PageHeader title="用户" accent="管理" subtitle="管理系统账号、角色分配与可见仓库" />
 
     <el-card shadow="never">
     <div class="erp-toolbar">
@@ -16,9 +9,13 @@
         <el-option label="启用" :value="1" />
         <el-option label="停用" :value="0" />
       </el-select>
-      <el-button type="primary" class="erp-btn-soft" @click="doSearch">
+      <el-button type="primary" @click="doSearch">
         <template #icon><Search /></template>
         查询
+      </el-button>
+      <el-button v-perm="'system:user:create'" type="primary" @click="openCreate">
+        <template #icon><Plus /></template>
+        新增用户
       </el-button>
     </div>
 

@@ -1,27 +1,45 @@
 /**
- * 全局设计令牌 v2 —— DataPulse demo 移植：lavender 渐变底 + 玻璃浮层 + 鲜绿 CTA + 蓝紫点缀。
+ * 全局设计令牌 v2.1 —— 统一浅蓝色调（对齐参考图 hero）：主按钮亮蓝 #2563EB，
+ * 背景浅蓝渐变 + 右下暖色一抹，绿仅作成功语义。
  * 规则：颜色/圆角/阴影只在令牌层定义；页面内禁止裸 hex。
  * 玻璃只用在"面"（侧栏/顶栏/卡片/弹窗），控件（按钮/输入框）保持实心可读。
  */
+
+/* 全局 border-box：缺了它，height:100vh + padding 会撑出多余滚动条（Element Plus 不带此 reset） */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
-  /* 色板 */
+  /* 色板（v2.1 统一浅蓝：按钮对齐参考图 "How it Works"，绿只留成功语义） */
   --erp-green: #22c55e;
   --erp-green-dark: #16a34a;
   --erp-green-soft: #dcfce7;
-  --erp-blue: #2f7cf6;
+  --erp-blue: #2563eb;
+  --erp-blue-deep: #1e4ebc;
+  --erp-blue-sky: #38bdf8;
   --erp-blue-soft: #e4efff;
+  --erp-sky: #0284c7;
+  --erp-sky-soft: #e0f2fe;
+  --erp-indigo: #4338ca;
+  --erp-indigo-soft: #e0e7ff;
   --erp-violet: #7c3aed;
   --erp-violet-soft: #f1e8ff;
   --erp-red: #ef4444;
+  --erp-red-soft: #fee2e2;
+  --erp-red-text: #b91c1c;
+  --erp-red-border: #fecaca;
   --erp-amber: #d97706;
   --erp-ink: #0f172a;
   --erp-muted: #64748b;
   --erp-faint: #94a3b8;
   --erp-line: #edf0f9;
 
-  /* 玻璃配方 */
-  --erp-glass-bg: rgba(255, 255, 255, 0.58);
-  --erp-glass-border: rgba(255, 255, 255, 0.65);
+  /* 玻璃配方：底色提白至近实色（对齐参考图导航白条），保留 blur 与蓝渐变背景的透感 */
+  --erp-glass-bg: rgba(255, 255, 255, 0.92);
+  --erp-glass-border: rgba(255, 255, 255, 0.85);
   --erp-glass-blur: blur(18px) saturate(1.4);
   --erp-glass-shadow: 0 14px 40px -16px rgba(60, 70, 150, 0.28);
 
@@ -33,24 +51,29 @@
   --erp-radius: 16px;
   --erp-radius-lg: 20px;
 
-  /* Element Plus：主色=鲜绿（实心 CTA / 选中态），链接与焦点态另行覆盖为蓝 */
-  --el-color-primary: var(--erp-green);
-  --el-color-primary-light-3: #5ede8f;
-  --el-color-primary-light-5: #90e2ae;
-  --el-color-primary-light-7: #c3edd2;
-  --el-color-primary-light-8: #dcf3e4;
-  --el-color-primary-light-9: #eef9f2;
-  --el-color-primary-dark-2: #1b9e4b;
+  /* Element Plus：主色=亮蓝（对齐参考图按钮），绿仅作成功语义 */
+  --el-color-primary: var(--erp-blue);
+  --el-color-primary-light-3: #6691f1;
+  --el-color-primary-light-5: #92b0f5;
+  --el-color-primary-light-7: #bed0f9;
+  --el-color-primary-light-8: #d3dffb;
+  --el-color-primary-light-9: #e9eefd;
+  --el-color-primary-dark-2: var(--erp-blue-deep);
   --el-border-radius-base: 10px;
 }
 
-/* ---------- 应用背景（布局与登录共用） ---------- */
+/* html 底色兜底：滚动条旁/橡皮筋滚动时不露白边 */
+html {
+  background: #e9effb;
+}
+
+/* ---------- 应用背景（布局与登录共用）：柔和浅蓝 + 右下角一抹暖色 ---------- */
 .erp-app-bg {
   background:
-    radial-gradient(760px 420px at 82% -8%, rgba(124, 58, 237, 0.28), transparent 62%),
-    radial-gradient(700px 420px at -6% 26%, rgba(47, 124, 246, 0.26), transparent 62%),
-    radial-gradient(560px 380px at 55% 110%, rgba(34, 197, 94, 0.16), transparent 60%),
-    linear-gradient(180deg, #f5f6fe, #eceffb);
+    radial-gradient(820px 460px at 88% 108%, rgba(251, 191, 136, 0.16), transparent 60%),
+    radial-gradient(760px 420px at 12% -8%, rgba(56, 189, 248, 0.2), transparent 62%),
+    radial-gradient(700px 420px at 78% 18%, rgba(37, 99, 235, 0.14), transparent 62%),
+    linear-gradient(180deg, #f2f6fd, #e9effb);
 }
 
 /* ---------- 玻璃表面 ---------- */
@@ -73,15 +96,20 @@
   display: grid;
   gap: var(--erp-space-3);
 }
+/* 按钮间距全站统一 12px：工具栏、页头操作区、弹窗页脚、行内链接同一值 */
 .erp-toolbar {
   display: flex;
   align-items: center;
-  gap: var(--erp-space-1);
+  gap: var(--erp-space-2);
   flex-wrap: wrap;
   margin-bottom: var(--erp-space-2);
 }
 .erp-toolbar .erp-spacer {
   flex: 1;
+}
+/* Element 相邻按钮自带 margin-left:12px，与 flex gap 叠加会翻倍；工具栏内抵消，间距统一 12px */
+.erp-toolbar .el-button + .el-button {
+  margin-left: 0;
 }
 .erp-pager {
   margin-top: var(--erp-space-2);
@@ -98,9 +126,9 @@
   box-shadow: var(--erp-glass-shadow);
   border-radius: var(--erp-radius);
 }
-/* 弹窗玻璃 */
+/* 弹窗玻璃（与浮层同白度） */
 .el-dialog {
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(22px) saturate(1.4);
   -webkit-backdrop-filter: blur(22px) saturate(1.4);
   border: 1px solid rgba(255, 255, 255, 0.7);
@@ -150,20 +178,9 @@
   box-shadow: 0 0 0 1px var(--erp-blue) inset !important;
 }
 
-/* 次级"查询"按钮：浅蓝底蓝字 */
-.erp-btn-soft {
-  --el-button-bg-color: var(--erp-blue-soft);
-  --el-button-text-color: var(--erp-blue);
-  --el-button-border-color: transparent;
-  --el-button-hover-bg-color: #d6e7ff;
-  --el-button-hover-text-color: var(--erp-blue);
-  --el-button-hover-border-color: transparent;
-  --el-button-active-bg-color: #c4dcff;
-}
-
-/* 渐变强调字（页头关键词/问候语） */
+/* 渐变强调字（页头关键词/问候语）：蓝系内渐变，与参考图同调 */
 .erp-grad-text {
-  background: linear-gradient(92deg, var(--erp-blue), var(--erp-violet));
+  background: linear-gradient(92deg, var(--erp-blue), var(--erp-blue-sky));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

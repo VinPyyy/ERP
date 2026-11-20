@@ -1,15 +1,14 @@
 <template>
   <div class="erp-page">
-    <PageHeader title="角色" accent="管理" subtitle="定义角色并分配权限点">
-      <template #extra>
-        <el-button v-perm="'system:role:create'" type="primary" @click="openCreate">
-          <template #icon><Plus /></template>
-          新增角色
-        </el-button>
-      </template>
-    </PageHeader>
+    <PageHeader title="角色" accent="管理" subtitle="定义角色并分配权限点" />
 
     <el-card shadow="never">
+    <div class="erp-toolbar">
+      <el-button v-perm="'system:role:create'" type="primary" @click="openCreate">
+        <template #icon><Plus /></template>
+        新增角色
+      </el-button>
+    </div>
     <el-table v-loading="loading" :data="roles" class="erp-table">
       <el-table-column prop="roleCode" label="角色编码" width="160" />
       <el-table-column prop="roleName" label="角色名称" width="160" />

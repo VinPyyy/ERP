@@ -6,7 +6,7 @@
       <template #header>
         <div class="tree-head">
           <span>类别</span>
-          <el-button v-perm="'basedata:product:edit'" link type="primary" @click="addCategory(0)">
+          <el-button v-perm="'basedata:product:edit'" type="primary" @click="addCategory(0)">
             <template #icon><Plus /></template>
             新增根类
           </el-button>
@@ -30,8 +30,7 @@
           </span>
         </template>
       </el-tree>
-      <el-divider style="margin: 8px 0" />
-      <el-button link type="primary" @click="clearCategory">查看全部商品</el-button>
+      <el-button link type="primary" class="view-all" @click="clearCategory">查看全部商品</el-button>
     </el-card>
 
     <el-card shadow="never" class="list-card">
@@ -40,7 +39,7 @@
         <el-select v-model="modeFilter" placeholder="管理方式" clearable style="width: 130px" @change="doSearch">
           <el-option v-for="m in mgmtOptions" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
-        <el-button type="primary" class="erp-btn-soft" @click="doSearch">
+        <el-button type="primary" @click="doSearch">
           <template #icon><Search /></template>
           查询
         </el-button>
@@ -54,12 +53,12 @@
           accept=".xlsx"
           :http-request="doImport"
         >
-          <el-button plain>
+          <el-button type="primary">
             <template #icon><Upload /></template>
             导入 Excel
           </el-button>
         </el-upload>
-        <el-button v-perm="'basedata:product:export'" plain @click="doExport">
+        <el-button v-perm="'basedata:product:export'" type="primary" @click="doExport">
           <template #icon><Download /></template>
           导出
         </el-button>
@@ -308,10 +307,16 @@ async function doExport() {
 </script>
 
 <style scoped>
-.product-layout { display: flex; gap: 12px; align-items: flex-start; }
+/* stretch：树卡与右侧列表卡等高，空态时底边对齐 */
+.product-layout { display: flex; gap: 12px; align-items: stretch; }
 .tree-card { width: 240px; flex-shrink: 0; }
+.tree-card :deep(.el-card__header) { border-bottom: 0; }
+.view-all { margin-top: var(--erp-space-1); align-self: flex-start; }
 .list-card { flex: 1; min-width: 0; }
 .tree-head { display: flex; justify-content: space-between; align-items: center; }
+/* el-tree 默认白底会在玻璃卡上留下白斑；空态高度对齐右侧表格（60px） */
+.tree-card :deep(.el-tree) { background: transparent; }
+.tree-card :deep(.el-tree__empty-block) { min-height: 60px; height: 60px; }
 .tree-node { display: flex; justify-content: space-between; width: 100%; align-items: center; }
 .tree-ops { display: none; }
 .tree-node:hover .tree-ops { display: inline; }

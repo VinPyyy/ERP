@@ -28,7 +28,7 @@ defineProps<{
 <style scoped>
 .page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--erp-space-3);
   flex-wrap: wrap;
@@ -50,6 +50,6 @@ defineProps<{
 .page-header-actions {
   display: flex;
   align-items: center;
-  gap: var(--erp-space-1);
+  gap: var(--erp-space-2);
 }
 </style>

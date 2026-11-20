@@ -1,28 +1,25 @@
 <template>
   <div class="erp-page">
-    <PageHeader :title="label" accent="管理" :subtitle="`${label}档案与往来信息`">
-      <template #extra>
-        <el-button v-perm="`${permPrefix}:create`" type="primary" @click="openEdit(null)">
-          <template #icon><Plus /></template>
-          新增{{ label }}
-        </el-button>
-      </template>
-    </PageHeader>
+    <PageHeader :title="label" accent="管理" :subtitle="`${label}档案与往来信息`" />
 
     <el-card shadow="never">
     <div class="erp-toolbar">
       <el-input v-model="keyword" :placeholder="`${label}编码/名称`" clearable style="width: 220px" @keyup.enter="doSearch" />
-      <el-button type="primary" class="erp-btn-soft" @click="doSearch">
+      <el-button type="primary" @click="doSearch">
         <template #icon><Search /></template>
         查询
       </el-button>
+      <el-button v-perm="`${permPrefix}:create`" type="primary" @click="openEdit(null)">
+        <template #icon><Plus /></template>
+        新增{{ label }}
+      </el-button>
       <el-upload v-perm="`${permPrefix}:import`" :show-file-list="false" accept=".xlsx" :http-request="doImport">
-        <el-button plain>
+        <el-button type="primary">
           <template #icon><Upload /></template>
           导入 Excel
         </el-button>
       </el-upload>
-      <el-button v-perm="`${permPrefix}:export`" plain @click="doExport">
+      <el-button v-perm="`${permPrefix}:export`" type="primary" @click="doExport">
         <template #icon><Download /></template>
         导出
       </el-button>

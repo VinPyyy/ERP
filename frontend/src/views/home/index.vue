@@ -155,8 +155,8 @@ const doneCount = computed(() => milestones.filter((m) => m.done).length)
   place-items: center;
 }
 .kpi-ic.blue { background: var(--erp-blue-soft); color: var(--erp-blue); }
-.kpi-ic.violet { background: var(--erp-violet-soft); color: var(--erp-violet); }
-.kpi-ic.green { background: var(--erp-green-soft); color: var(--erp-green-dark); }
+.kpi-ic.violet { background: var(--erp-sky-soft); color: var(--erp-sky); }
+.kpi-ic.green { background: var(--erp-indigo-soft); color: var(--erp-indigo); }
 .kpi-num {
   margin-top: 10px;
   font-size: 26px;

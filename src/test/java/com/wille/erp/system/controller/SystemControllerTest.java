@@ -70,7 +70,7 @@ class SystemControllerTest {
         String token = adminToken();
         UserSaveRequest create = new UserSaveRequest();
         create.setUsername("crud01");
-        create.setPassword("pwd123");
+        com.wille.erp.support.LoginTestRequests.withEncryptedPassword(passwordCryptoService, create, "pwd123");
         create.setRealName("CRUD 测试");
         create.setRoleIds(List.of(3L));
         create.setWarehouseIds(List.of(0L));
@@ -124,7 +124,7 @@ class SystemControllerTest {
         String token = adminToken();
         UserSaveRequest create = new UserSaveRequest();
         create.setUsername("rpw01");
-        create.setPassword("pwd123");
+        com.wille.erp.support.LoginTestRequests.withEncryptedPassword(passwordCryptoService, create, "pwd123");
         create.setRoleIds(List.of(3L));
         create.setWarehouseIds(List.of(0L));
         String created = mockMvc.perform(post("/api/system/users").header("Authorization", token)
@@ -154,9 +154,13 @@ class SystemControllerTest {
     @Test
     void salesRoleUserForbiddenOnUserManagement() throws Exception {
         // 非 admin（SALES 角色无 system:user:list 权限点）→ HTTP 403
-        String createBody = objectMapper.writeValueAsString(java.util.Map.of(
-                "username", "sales01", "password", "pwd123", "realName", "销售",
-                "roleIds", List.of(2L), "warehouseIds", List.of(0L)));
+        UserSaveRequest salesCreate = new UserSaveRequest();
+        salesCreate.setUsername("sales01");
+        salesCreate.setRealName("销售");
+        salesCreate.setRoleIds(List.of(2L));
+        salesCreate.setWarehouseIds(List.of(0L));
+        String createBody = objectMapper.writeValueAsString(
+                com.wille.erp.support.LoginTestRequests.withEncryptedPassword(passwordCryptoService, salesCreate, "pwd123"));
         mockMvc.perform(post("/api/system/users").header("Authorization", adminToken())
                 .contentType(JSON).content(createBody));
 

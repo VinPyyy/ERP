@@ -30,14 +30,15 @@ class UserServiceTest {
     private DataFactory dataFactory;
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private PasswordCryptoService passwordCryptoService;
 
     private UserSaveRequest req(String username, String password) {
         UserSaveRequest request = new UserSaveRequest();
         request.setUsername(username);
-        request.setPassword(password);
         request.setRealName(username);
         request.setStatus(1);
-        return request;
+        return com.wille.erp.support.LoginTestRequests.withEncryptedPassword(passwordCryptoService, request, password);
     }
 
     @Test

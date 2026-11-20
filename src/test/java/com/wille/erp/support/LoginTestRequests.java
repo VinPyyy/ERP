@@ -3,6 +3,7 @@ package com.wille.erp.support;
 import com.wille.erp.system.dto.CryptoChallenge;
 import com.wille.erp.system.dto.LoginRequest;
 import com.wille.erp.system.dto.ResetPasswordRequest;
+import com.wille.erp.system.dto.UserSaveRequest;
 import com.wille.erp.system.service.PasswordCryptoService;
 
 import javax.crypto.Cipher;
@@ -35,6 +36,15 @@ public final class LoginTestRequests {
         CryptoChallenge ch = crypto.issue();
         ResetPasswordRequest request = new ResetPasswordRequest();
         request.setEncryptedPassword(encrypt(ch.publicKey(), ch.nonce() + "." + newPassword));
+        request.setNonce(ch.nonce());
+        request.setTs(System.currentTimeMillis());
+        return request;
+    }
+
+    /** 新建用户请求的密码字段加密（复用传入 request，返回自身便于链式） */
+    public static UserSaveRequest withEncryptedPassword(PasswordCryptoService crypto, UserSaveRequest request, String password) {
+        CryptoChallenge ch = crypto.issue();
+        request.setEncryptedPassword(encrypt(ch.publicKey(), ch.nonce() + "." + password));
         request.setNonce(ch.nonce());
         request.setTs(System.currentTimeMillis());
         return request;

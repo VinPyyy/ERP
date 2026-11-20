@@ -44,16 +44,23 @@ public class UserService {
     private final SysUserWarehouseMapper userWarehouseMapper;
     private final SysRoleMapper roleMapper;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordCryptoService passwordCryptoService;
 
     @Transactional(rollbackFor = Exception.class)
     public Long create(UserSaveRequest request) {
         requireUsernameUnique(request.getUsername(), null);
-        if (request.getPassword() == null || request.getPassword().isBlank()) {
+        if (request.getEncryptedPassword() == null || request.getEncryptedPassword().isBlank()) {
             throw new BizException(ErrorCode.PARAM_INVALID, "新建用户必须设置密码");
+        }
+        // 密文挑战校验与登录/重置同一机制；长度校验在解密后做
+        String rawPassword = passwordCryptoService.verifyAndDecrypt(
+                request.getNonce(), request.getTs(), request.getEncryptedPassword());
+        if (rawPassword.length() < 6) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "密码至少 6 位");
         }
         SysUser user = new SysUser();
         applyBasicFields(user, request);
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setPassword(passwordEncoder.encode(rawPassword));
         userMapper.insert(user);
         replaceRoles(user.getId(), request.getRoleIds());
         replaceWarehouses(user.getId(), request.getWarehouseIds());

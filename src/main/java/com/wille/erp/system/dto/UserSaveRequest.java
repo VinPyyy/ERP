@@ -5,14 +5,22 @@ import lombok.Data;
 
 import java.util.List;
 
+/**
+ * 用户新建/编辑请求。密码仅 create 使用且不明文传输：
+ * encryptedPassword = Base64( RSA-OAEP( "nonce.初始密码" ) )，update 忽略三个密码字段。
+ */
 @Data
 public class UserSaveRequest {
 
     @NotBlank
     private String username;
 
-    /** create 必填；update 忽略（改密走 resetPassword） */
-    private String password;
+    /** create 必填（密文）；update 忽略 */
+    private String encryptedPassword;
+
+    private String nonce;
+
+    private Long ts;
 
     private String realName;
     private String phone;
@@ -20,6 +28,5 @@ public class UserSaveRequest {
     private Integer status;
     private String remark;
     private List<Long> roleIds;
-    /** 可见仓库；含 0 = 全部仓库 */
     private List<Long> warehouseIds;
 }

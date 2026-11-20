@@ -16,10 +16,12 @@ import com.wille.erp.inventory.entity.InvFlow;
 import com.wille.erp.inventory.entity.InvLotStock;
 import com.wille.erp.inventory.entity.InvSn;
 import com.wille.erp.inventory.entity.InvStock;
+import com.wille.erp.inventory.entity.InvStockLock;
 import com.wille.erp.inventory.mapper.InvFlowMapper;
 import com.wille.erp.inventory.mapper.InvLotMapper;
 import com.wille.erp.inventory.mapper.InvLotStockMapper;
 import com.wille.erp.inventory.mapper.InvSnMapper;
+import com.wille.erp.inventory.mapper.InvStockLockMapper;
 import com.wille.erp.inventory.mapper.InvStockMapper;
 import com.wille.erp.system.api.ConfigService;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +46,7 @@ public class StockServiceImpl implements StockService {
     private final InvLotMapper lotMapper;
     private final InvLotStockMapper lotStockMapper;
     private final InvSnMapper snMapper;
+    private final InvStockLockMapper lockMapper;
     private final InvFlowMapper flowMapper;
     private final ProductReader productReader;
     private final ConfigService configService;
@@ -66,13 +69,49 @@ public class StockServiceImpl implements StockService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void lock(StockCmd.LockCmd cmd) {
-        throw new UnsupportedOperationException("Task 4");
+        List<StockCmd.LockLine> lines = cmd.lines().stream()
+                .sorted(Comparator.comparing(StockCmd.LockLine::skuId)).toList();
+        for (StockCmd.LockLine line : lines) {
+            InvStock row = lockOrCreate(cmd.warehouseId(), line.skuId());
+            if (!configService.getBool(ConfigService.KEY_ALLOW_NEGATIVE)) {
+                BigDecimal available = row.getQty().subtract(row.getLockedQty());
+                if (available.compareTo(line.qty()) < 0) {
+                    throw new BizException(ErrorCode.STOCK_NOT_ENOUGH,
+                            "可用量不足: " + available.stripTrailingZeros().toPlainString());
+                }
+            }
+            InvStockLock lock = new InvStockLock();
+            lock.setLockDocType(cmd.ref().lockDocType().name());
+            lock.setLockDocId(cmd.ref().lockDocId());
+            lock.setLockItemId(cmd.ref().lockItemId());
+            lock.setWarehouseId(cmd.warehouseId());
+            lock.setSkuId(line.skuId());
+            lock.setLockQty(line.qty());
+            lock.setRemainQty(line.qty());
+            lockMapper.insert(lock);
+            row.setLockedQty(row.getLockedQty().add(line.qty()));
+            stockMapper.updateById(row);
+        }
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void unlock(StockCmd.LockRef ref) {
-        throw new UnsupportedOperationException("Task 4");
+        List<InvStockLock> rows = lockMapper.selectList(Wrappers.<InvStockLock>lambdaQuery()
+                .eq(InvStockLock::getLockDocType, ref.lockDocType().name())
+                .eq(InvStockLock::getLockDocId, ref.lockDocId())
+                .eq(InvStockLock::getLockItemId, ref.lockItemId())
+                .gt(InvStockLock::getRemainQty, BigDecimal.ZERO));
+        for (InvStockLock lock : rows) {
+            InvStock row = lockOrCreate(lock.getWarehouseId(), lock.getSkuId());
+            row.setLockedQty(row.getLockedQty().subtract(lock.getRemainQty()));
+            stockMapper.updateById(row);
+            // remain=0 行保留作历史
+            lock.setRemainQty(BigDecimal.ZERO);
+            lockMapper.updateById(lock);
+        }
     }
 
     @Override

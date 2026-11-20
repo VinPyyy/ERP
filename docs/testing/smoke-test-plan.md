@@ -71,6 +71,25 @@
 
 **副作用**：runid 后缀仓库/商品行留在 dev 库（名称唯一不互踩）；期初全部最终作废，库存净变化 0。
 
+### `scripts/smoke/purchase-smoke.cjs` —— 采购链路（M4）
+
+```
+运行：node scripts/smoke/purchase-smoke.cjs
+前置：后端 8080 + admin 种子；runid 隔离主数据与单据链，收尾入库作废净库存 0
+```
+
+| # | 场景 | 期望 | 关联测试 |
+|---|---|---|---|
+| 01 | admin 加密登录 | code 0 | auth-smoke |
+| 02 | runid 仓库/双供应商/商品 | code 0 | — |
+| 03 | 询价→审核→双行选中→转单 | 2 张订单草稿 | `convertGroupsSelectedLinesBySupplier` |
+| 04 | 订单审核→create-inbound→入库审核 | 库存 10@50 | `createInboundCarriesUnfulfilledLines` |
+| 05 | done_qty=qty 行完成头完成 | COMPLETED | `partialInboundDoneQtyFlowAndAutoComplete` |
+| 06 | 有源退货 4（手传价 99 被强制原单价） | 库存 6 | `returnWithSourceCarriesPriceAndBlocksOverReturn` |
+| 07 | 退货作废回库 | 库存 10 | `voidReturnReversesOutboundDirection` |
+| 08 | 入库作废（下游已清） | 库存 0、done 回减 | `voidInboundRollsBackDoneQtyAndStock` |
+| 09 | replay-check | consistent=true | `FlowReplayCheckerTest` |
+
 ## 3. 执行记录
 
 | 日期 | 套件 | 结果 | 备注 |

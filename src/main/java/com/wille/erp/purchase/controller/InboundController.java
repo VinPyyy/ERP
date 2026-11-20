@@ -1,0 +1,57 @@
+package com.wille.erp.purchase.controller;
+
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.wille.erp.common.api.R;
+import com.wille.erp.purchase.dto.InboundSaveRequest;
+import com.wille.erp.purchase.service.InboundService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/purchase/inbounds")
+@RequiredArgsConstructor
+public class InboundController {
+
+    private final InboundService inboundService;
+
+    @Data
+    public static class VoidRequest {
+        @NotBlank(message = "作废原因必填")
+        private String reason;
+    }
+
+    @PostMapping
+    @SaCheckPermission("purchase:inbound:create")
+    public R<Long> create(@Valid @RequestBody InboundSaveRequest request) {
+        return R.ok(inboundService.create(request));
+    }
+
+    @PutMapping("/{id}")
+    @SaCheckPermission("purchase:inbound:edit")
+    public R<Void> update(@PathVariable Long id, @Valid @RequestBody InboundSaveRequest request) {
+        inboundService.update(id, request);
+        return R.ok();
+    }
+
+    @PostMapping("/{id}/audit")
+    @SaCheckPermission("purchase:inbound:audit")
+    public R<Void> audit(@PathVariable Long id) {
+        inboundService.audit(id);
+        return R.ok();
+    }
+
+    @PostMapping("/{id}/void")
+    @SaCheckPermission("purchase:inbound:void")
+    public R<Void> voidInbound(@PathVariable Long id, @Valid @RequestBody VoidRequest request) {
+        inboundService.voidInbound(id, request.getReason());
+        return R.ok();
+    }
+}

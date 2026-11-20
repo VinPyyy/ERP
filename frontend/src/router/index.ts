@@ -7,7 +7,8 @@ import BasicLayout from '@/layouts/BasicLayout.vue'
  * 各业务页面在 M1–M7 里程碑注册到 Layout children。
  */
 const router = createRouter({
-  history: createWebHistory(),
+  // base 跟随 vite.config 的 base（/erp/），路由 path 仍按应用内相对路径书写
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/login',

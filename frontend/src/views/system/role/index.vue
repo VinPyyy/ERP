@@ -1,9 +1,16 @@
 <template>
-  <el-card shadow="never">
-    <div class="toolbar">
-      <el-button v-perm="'system:role:create'" type="primary" @click="openCreate">新增角色</el-button>
-    </div>
-    <el-table v-loading="loading" :data="roles" border>
+  <div class="erp-page">
+    <PageHeader title="角色" accent="管理" subtitle="定义角色并分配权限点">
+      <template #extra>
+        <el-button v-perm="'system:role:create'" type="primary" @click="openCreate">
+          <template #icon><Plus /></template>
+          新增角色
+        </el-button>
+      </template>
+    </PageHeader>
+
+    <el-card shadow="never">
+    <el-table v-loading="loading" :data="roles" class="erp-table">
       <el-table-column prop="roleCode" label="角色编码" width="160" />
       <el-table-column prop="roleName" label="角色名称" width="160" />
       <el-table-column label="类型" width="100">
@@ -13,15 +20,25 @@
         </template>
       </el-table-column>
       <el-table-column prop="remark" label="备注" min-width="180" />
-      <el-table-column label="操作" width="240" fixed="right">
+      <el-table-column label="操作" width="270" fixed="right">
         <template #default="{ row }">
-          <el-button v-perm="'system:role:grant'" link type="primary" @click="openGrant(row)">授权</el-button>
-          <el-button v-perm="'system:role:edit'" link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button v-perm="'system:role:delete'" link type="danger" :disabled="row.builtIn === 1" @click="remove(row)">删除</el-button>
+          <el-button v-perm="'system:role:grant'" link type="primary" @click="openGrant(row)">
+            <template #icon><Key /></template>
+            授权
+          </el-button>
+          <el-button v-perm="'system:role:edit'" link type="primary" @click="openEdit(row)">
+            <template #icon><Edit /></template>
+            编辑
+          </el-button>
+          <el-button v-perm="'system:role:delete'" link type="danger" :disabled="row.builtIn === 1" @click="remove(row)">
+            <template #icon><Delete /></template>
+            删除
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
-  </el-card>
+    </el-card>
+  </div>
 
   <el-dialog v-model="dialogVisible" :title="form.id ? '编辑角色' : '新增角色'" width="420px">
     <el-form :model="form" label-width="90px">
@@ -30,8 +47,14 @@
       <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" /></el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+      <el-button @click="dialogVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" :loading="saving" @click="save">
+        <template #icon><Check /></template>
+        保存
+      </el-button>
     </template>
   </el-dialog>
 
@@ -45,8 +68,14 @@
       :props="{ label: 'permName', children: 'children' }"
     />
     <template #footer>
-      <el-button @click="grantVisible = false">取消</el-button>
-      <el-button type="primary" :loading="granting" @click="doGrant">保存授权</el-button>
+      <el-button @click="grantVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" :loading="granting" @click="doGrant">
+        <template #icon><Check /></template>
+        保存授权
+      </el-button>
     </template>
   </el-drawer>
 </template>
@@ -59,6 +88,7 @@ import {
   roleApi, permissionApi,
   type RoleVO, type PermissionNode
 } from '@/api/system'
+import PageHeader from '@/components/PageHeader.vue'
 
 const loading = ref(false)
 const roles = ref<RoleVO[]>([])
@@ -153,5 +183,5 @@ async function doGrant() {
 </script>
 
 <style scoped>
-.toolbar { margin-bottom: 12px; }
+/* 骨架样式统一走 tokens.css 的 .erp-* 类 */
 </style>

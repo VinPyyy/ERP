@@ -23,18 +23,19 @@ const router = createRouter({
         {
           path: '',
           name: 'home',
-          component: () => import('@/views/home/index.vue')
+          component: () => import('@/views/home/index.vue'),
+          meta: { title: '首页' }
         },
         // M1：系统管理
-        { path: 'system/user', name: 'system-user', component: () => import('@/views/system/user/index.vue') },
-        { path: 'system/role', name: 'system-role', component: () => import('@/views/system/role/index.vue') },
-        { path: 'system/config', name: 'system-config', component: () => import('@/views/system/config/index.vue') },
-        { path: 'system/doc-no', name: 'system-docno', component: () => import('@/views/system/doc-no/index.vue') },
+        { path: 'system/user', name: 'system-user', component: () => import('@/views/system/user/index.vue'), meta: { title: '用户' } },
+        { path: 'system/role', name: 'system-role', component: () => import('@/views/system/role/index.vue'), meta: { title: '角色' } },
+        { path: 'system/config', name: 'system-config', component: () => import('@/views/system/config/index.vue'), meta: { title: '系统参数' } },
+        { path: 'system/doc-no', name: 'system-docno', component: () => import('@/views/system/doc-no/index.vue'), meta: { title: '编号规则' } },
         // M2：基础资料
-        { path: 'basedata/product', name: 'basedata-product', component: () => import('@/views/basedata/product/index.vue') },
-        { path: 'basedata/customer', name: 'basedata-customer', component: () => import('@/views/basedata/partner/index.vue'), props: { kind: 'customer' } },
-        { path: 'basedata/supplier', name: 'basedata-supplier', component: () => import('@/views/basedata/partner/index.vue'), props: { kind: 'supplier' } },
-        { path: 'basedata/warehouse', name: 'basedata-warehouse', component: () => import('@/views/basedata/warehouse/index.vue') }
+        { path: 'basedata/product', name: 'basedata-product', component: () => import('@/views/basedata/product/index.vue'), meta: { title: '商品' } },
+        { path: 'basedata/customer', name: 'basedata-customer', component: () => import('@/views/basedata/partner/index.vue'), props: { kind: 'customer' }, meta: { title: '客户' } },
+        { path: 'basedata/supplier', name: 'basedata-supplier', component: () => import('@/views/basedata/partner/index.vue'), props: { kind: 'supplier' }, meta: { title: '供应商' } },
+        { path: 'basedata/warehouse', name: 'basedata-warehouse', component: () => import('@/views/basedata/warehouse/index.vue'), meta: { title: '仓库' } }
         // M3: /inventory/*  M4: /purchase/*  M5: /sale/*  M6: 盘点调拨  M7: /print/:docType/:id（Layout 外）
       ]
     },

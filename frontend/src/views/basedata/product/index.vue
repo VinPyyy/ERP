@@ -1,10 +1,15 @@
 <template>
-  <div class="product-layout">
+  <div class="erp-page">
+    <PageHeader title="商品" accent="档案" subtitle="商品档案、类别树与计量管理方式" />
+    <div class="product-layout">
     <el-card shadow="never" class="tree-card">
       <template #header>
         <div class="tree-head">
           <span>类别</span>
-          <el-button v-perm="'basedata:product:edit'" link type="primary" @click="addCategory(0)">新增根类</el-button>
+          <el-button v-perm="'basedata:product:edit'" link type="primary" @click="addCategory(0)">
+            <template #icon><Plus /></template>
+            新增根类
+          </el-button>
         </div>
       </template>
       <el-tree
@@ -30,25 +35,37 @@
     </el-card>
 
     <el-card shadow="never" class="list-card">
-      <div class="toolbar">
+      <div class="erp-toolbar">
         <el-input v-model="keyword" placeholder="编码/名称/条码" clearable style="width: 200px" @keyup.enter="doSearch" />
         <el-select v-model="modeFilter" placeholder="管理方式" clearable style="width: 130px" @change="doSearch">
           <el-option v-for="m in mgmtOptions" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
-        <el-button type="primary" @click="doSearch">查询</el-button>
-        <el-button v-perm="'basedata:product:create'" type="primary" @click="openEdit(null)">新增商品</el-button>
+        <el-button type="primary" class="erp-btn-soft" @click="doSearch">
+          <template #icon><Search /></template>
+          查询
+        </el-button>
+        <el-button v-perm="'basedata:product:create'" type="primary" @click="openEdit(null)">
+          <template #icon><Plus /></template>
+          新增商品
+        </el-button>
         <el-upload
           v-perm="'basedata:product:import'"
           :show-file-list="false"
           accept=".xlsx"
           :http-request="doImport"
         >
-          <el-button plain>导入 Excel</el-button>
+          <el-button plain>
+            <template #icon><Upload /></template>
+            导入 Excel
+          </el-button>
         </el-upload>
-        <el-button v-perm="'basedata:product:export'" plain @click="doExport">导出</el-button>
+        <el-button v-perm="'basedata:product:export'" plain @click="doExport">
+          <template #icon><Download /></template>
+          导出
+        </el-button>
       </div>
 
-      <el-table v-loading="loading" :data="rows" border>
+      <el-table v-loading="loading" :data="rows" class="erp-table">
         <el-table-column prop="skuCode" label="编码" width="120" />
         <el-table-column prop="name" label="名称" min-width="140" />
         <el-table-column prop="spec" label="规格" width="100" />
@@ -65,10 +82,16 @@
             <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button v-perm="'basedata:product:edit'" link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button v-perm="'basedata:product:delete'" link type="danger" @click="remove(row)">删除</el-button>
+            <el-button v-perm="'basedata:product:edit'" link type="primary" @click="openEdit(row)">
+              <template #icon><Edit /></template>
+              编辑
+            </el-button>
+            <el-button v-perm="'basedata:product:delete'" link type="danger" @click="remove(row)">
+              <template #icon><Delete /></template>
+              删除
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -78,10 +101,11 @@
         v-model:page-size="query.pageSize"
         :total="total"
         layout="total, sizes, prev, pager, next"
-        class="pager"
+        class="erp-pager"
         @change="load"
       />
     </el-card>
+    </div>
   </div>
 
   <el-dialog v-model="editVisible" :title="editForm.id ? '编辑商品' : '新增商品'" width="560px">
@@ -115,8 +139,14 @@
       <el-form-item label="备注"><el-input v-model="editForm.remark" type="textarea" /></el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="editVisible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+      <el-button @click="editVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" :loading="saving" @click="save">
+        <template #icon><Check /></template>
+        保存
+      </el-button>
     </template>
   </el-dialog>
 
@@ -131,7 +161,12 @@
         <el-table-column prop="reason" label="原因" />
       </el-table>
     </template>
-    <template #footer><el-button type="primary" @click="importVisible = false">关闭</el-button></template>
+    <template #footer>
+      <el-button type="primary" @click="importVisible = false">
+        <template #icon><Close /></template>
+        关闭
+      </el-button>
+    </template>
   </el-dialog>
 </template>
 
@@ -144,6 +179,7 @@ import {
 } from '@/api/basedata'
 import { useTable } from '@/composables/useTable'
 import { useAuthStore } from '@/stores/auth'
+import PageHeader from '@/components/PageHeader.vue'
 
 interface CategoryNode extends CategoryVO { children: CategoryNode[] }
 
@@ -279,8 +315,7 @@ async function doExport() {
 .tree-node { display: flex; justify-content: space-between; width: 100%; align-items: center; }
 .tree-ops { display: none; }
 .tree-node:hover .tree-ops { display: inline; }
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-.pager { margin-top: 12px; justify-content: flex-end; }
+/* toolbar/pager 统一走 tokens.css 的 .erp-* 类 */
 .tip { margin-left: 8px; color: var(--el-text-color-secondary); font-size: 12px; }
 .mb8 { margin-bottom: 8px; }
 </style>

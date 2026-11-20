@@ -1,25 +1,32 @@
 <template>
-  <el-card shadow="never">
+  <div class="erp-page">
+    <PageHeader title="编号" accent="规则" subtitle="格式：{前缀}-{日期段}-{流水}，如 XSDD-20261119-0001" />
+
+    <el-card shadow="never">
     <el-alert
       type="info"
       :closable="false"
-      title="格式：{前缀}-{日期段}-{流水}，如 XSDD-20261119-0001；作废不回收号，跳号属正常现象"
+      title="作废不回收号，跳号属正常现象"
       class="hint"
     />
-    <el-table v-loading="loading" :data="rules" border>
+    <el-table v-loading="loading" :data="rules" class="erp-table">
       <el-table-column prop="docType" label="单据类型" width="150" />
       <el-table-column prop="prefix" label="前缀" width="100" />
       <el-table-column prop="datePattern" label="日期段" width="120" />
       <el-table-column prop="seqLength" label="流水位数" width="100" />
       <el-table-column prop="seqScope" label="重置周期" width="110" />
       <el-table-column prop="currentSeq" label="当前流水" width="100" />
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column label="操作" width="110" fixed="right">
         <template #default="{ row }">
-          <el-button v-perm="'system:docno:edit'" link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button v-perm="'system:docno:edit'" link type="primary" @click="openEdit(row)">
+            <template #icon><Edit /></template>
+            编辑
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
-  </el-card>
+    </el-card>
+  </div>
 
   <el-dialog v-model="dialogVisible" title="编辑编号规则" width="420px">
     <el-form label-width="90px">
@@ -42,8 +49,14 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" @click="save">保存</el-button>
+      <el-button @click="dialogVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" @click="save">
+        <template #icon><Check /></template>
+        保存
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -52,6 +65,7 @@
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { docNoApi, type DocNoRuleVO } from '@/api/system'
+import PageHeader from '@/components/PageHeader.vue'
 
 const loading = ref(false)
 const rules = ref<DocNoRuleVO[]>([])

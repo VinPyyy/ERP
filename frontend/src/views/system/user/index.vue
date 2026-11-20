@@ -1,16 +1,28 @@
 <template>
-  <el-card shadow="never">
-    <div class="toolbar">
+  <div class="erp-page">
+    <PageHeader title="用户" accent="管理" subtitle="管理系统账号、角色分配与可见仓库">
+      <template #extra>
+        <el-button v-perm="'system:user:create'" type="primary" @click="openCreate">
+          <template #icon><Plus /></template>
+          新增用户
+        </el-button>
+      </template>
+    </PageHeader>
+
+    <el-card shadow="never">
+    <div class="erp-toolbar">
       <el-input v-model="keyword" placeholder="用户名/姓名" clearable style="width: 220px" @keyup.enter="doSearch" />
       <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px" @change="doSearch">
         <el-option label="启用" :value="1" />
         <el-option label="停用" :value="0" />
       </el-select>
-      <el-button type="primary" @click="doSearch">查询</el-button>
-      <el-button v-perm="'system:user:create'" type="primary" plain @click="openCreate">新增用户</el-button>
+      <el-button type="primary" class="erp-btn-soft" @click="doSearch">
+        <template #icon><Search /></template>
+        查询
+      </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="rows" border>
+    <el-table v-loading="loading" :data="rows" class="erp-table">
       <el-table-column prop="username" label="用户名" width="140" />
       <el-table-column prop="realName" label="姓名" width="120" />
       <el-table-column prop="phone" label="手机" width="130" />
@@ -23,11 +35,20 @@
         </template>
       </el-table-column>
       <el-table-column prop="lastLoginTime" label="最后登录" width="170" />
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column label="操作" width="270" fixed="right">
         <template #default="{ row }">
-          <el-button v-perm="'system:user:edit'" link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button v-perm="'system:user:reset-password'" link type="warning" @click="openReset(row)">重置密码</el-button>
-          <el-button v-perm="'system:user:delete'" link type="danger" :disabled="row.username === 'admin'" @click="remove(row)">删除</el-button>
+          <el-button v-perm="'system:user:edit'" link type="primary" @click="openEdit(row)">
+            <template #icon><Edit /></template>
+            编辑
+          </el-button>
+          <el-button v-perm="'system:user:reset-password'" link type="warning" @click="openReset(row)">
+            <template #icon><Refresh /></template>
+            重置密码
+          </el-button>
+          <el-button v-perm="'system:user:delete'" link type="danger" :disabled="row.username === 'admin'" @click="remove(row)">
+            <template #icon><Delete /></template>
+            删除
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -37,10 +58,11 @@
       v-model:page-size="query.pageSize"
       :total="total"
       layout="total, sizes, prev, pager, next"
-      class="pager"
+      class="erp-pager"
       @change="load"
     />
-  </el-card>
+    </el-card>
+  </div>
 
   <el-dialog v-model="dialogVisible" :title="form.id ? '编辑用户' : '新增用户'" width="520px">
     <el-form :model="form" label-width="90px">
@@ -68,16 +90,28 @@
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+      <el-button @click="dialogVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" :loading="saving" @click="save">
+        <template #icon><Check /></template>
+        保存
+      </el-button>
     </template>
   </el-dialog>
 
   <el-dialog v-model="resetVisible" title="重置密码" width="380px">
     <el-input v-model="resetPassword" type="password" show-password placeholder="新密码（至少 6 位）" />
     <template #footer>
-      <el-button @click="resetVisible = false">取消</el-button>
-      <el-button type="primary" @click="doReset">确定</el-button>
+      <el-button @click="resetVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" @click="doReset">
+        <template #icon><Check /></template>
+        确定
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -88,6 +122,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi, roleApi, type UserVO, type UserSaveRequest, type RoleVO } from '@/api/system'
 import { encryptPassword } from '@/api/passwordCrypto'
 import { useTable } from '@/composables/useTable'
+import PageHeader from '@/components/PageHeader.vue'
 
 const { loading, rows, total, query, load, search } = useTable<UserVO>(
   (q) => userApi.page(q)
@@ -180,6 +215,5 @@ async function remove(row: UserVO) {
 </script>
 
 <style scoped>
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
-.pager { margin-top: 12px; justify-content: flex-end; }
+/* 页面骨架样式统一走 tokens.css 的 .erp-* 类 */
 </style>

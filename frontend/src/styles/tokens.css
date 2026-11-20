@@ -1,0 +1,177 @@
+/**
+ * 全局设计令牌 v2 —— DataPulse demo 移植：lavender 渐变底 + 玻璃浮层 + 鲜绿 CTA + 蓝紫点缀。
+ * 规则：颜色/圆角/阴影只在令牌层定义；页面内禁止裸 hex。
+ * 玻璃只用在"面"（侧栏/顶栏/卡片/弹窗），控件（按钮/输入框）保持实心可读。
+ */
+:root {
+  /* 色板 */
+  --erp-green: #22c55e;
+  --erp-green-dark: #16a34a;
+  --erp-green-soft: #dcfce7;
+  --erp-blue: #2f7cf6;
+  --erp-blue-soft: #e4efff;
+  --erp-violet: #7c3aed;
+  --erp-violet-soft: #f1e8ff;
+  --erp-red: #ef4444;
+  --erp-amber: #d97706;
+  --erp-ink: #0f172a;
+  --erp-muted: #64748b;
+  --erp-faint: #94a3b8;
+  --erp-line: #edf0f9;
+
+  /* 玻璃配方 */
+  --erp-glass-bg: rgba(255, 255, 255, 0.58);
+  --erp-glass-border: rgba(255, 255, 255, 0.65);
+  --erp-glass-blur: blur(18px) saturate(1.4);
+  --erp-glass-shadow: 0 14px 40px -16px rgba(60, 70, 150, 0.28);
+
+  /* 间距与圆角 */
+  --erp-space-1: 8px;
+  --erp-space-2: 12px;
+  --erp-space-3: 16px;
+  --erp-space-4: 24px;
+  --erp-radius: 16px;
+  --erp-radius-lg: 20px;
+
+  /* Element Plus：主色=鲜绿（实心 CTA / 选中态），链接与焦点态另行覆盖为蓝 */
+  --el-color-primary: var(--erp-green);
+  --el-color-primary-light-3: #5ede8f;
+  --el-color-primary-light-5: #90e2ae;
+  --el-color-primary-light-7: #c3edd2;
+  --el-color-primary-light-8: #dcf3e4;
+  --el-color-primary-light-9: #eef9f2;
+  --el-color-primary-dark-2: #1b9e4b;
+  --el-border-radius-base: 10px;
+}
+
+/* ---------- 应用背景（布局与登录共用） ---------- */
+.erp-app-bg {
+  background:
+    radial-gradient(760px 420px at 82% -8%, rgba(124, 58, 237, 0.28), transparent 62%),
+    radial-gradient(700px 420px at -6% 26%, rgba(47, 124, 246, 0.26), transparent 62%),
+    radial-gradient(560px 380px at 55% 110%, rgba(34, 197, 94, 0.16), transparent 60%),
+    linear-gradient(180deg, #f5f6fe, #eceffb);
+}
+
+/* ---------- 玻璃表面 ---------- */
+.erp-glass {
+  background: var(--erp-glass-bg);
+  backdrop-filter: var(--erp-glass-blur);
+  -webkit-backdrop-filter: var(--erp-glass-blur);
+  border: 1px solid var(--erp-glass-border);
+  box-shadow: var(--erp-glass-shadow);
+}
+/* 不支持 backdrop-filter 的旧内核：回退近实色，布局不崩 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .erp-glass {
+    background: rgba(255, 255, 255, 0.92);
+  }
+}
+
+/* ---------- 统一页面骨架 ---------- */
+.erp-page {
+  display: grid;
+  gap: var(--erp-space-3);
+}
+.erp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-1);
+  flex-wrap: wrap;
+  margin-bottom: var(--erp-space-2);
+}
+.erp-toolbar .erp-spacer {
+  flex: 1;
+}
+.erp-pager {
+  margin-top: var(--erp-space-2);
+  justify-content: flex-end;
+}
+
+/* ---------- Element 组件贴合玻璃语言 ---------- */
+/* 页面内卡片统一玻璃化 */
+.erp-page .el-card {
+  background: var(--erp-glass-bg);
+  backdrop-filter: var(--erp-glass-blur);
+  -webkit-backdrop-filter: var(--erp-glass-blur);
+  border: 1px solid var(--erp-glass-border);
+  box-shadow: var(--erp-glass-shadow);
+  border-radius: var(--erp-radius);
+}
+/* 弹窗玻璃 */
+.el-dialog {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 18px;
+}
+
+/* 表格：透明底落在玻璃卡上，表头浅染 */
+.erp-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: #f8faff;
+  --el-table-header-text-color: var(--erp-muted);
+  --el-table-border-color: var(--erp-line);
+  --el-table-row-hover-bg-color: rgba(47, 124, 246, 0.06);
+}
+.erp-table th.el-table__cell {
+  font-weight: 700;
+  font-size: 12px;
+}
+/* 状态标签：圆角胶囊 + 前置圆点（颜色之外多一层形状信号） */
+.erp-table .el-tag {
+  border-radius: 999px;
+}
+.erp-table .el-tag .el-tag__content::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+/* 行内主色链接按钮 → 蓝（绿只留给实心 CTA） */
+.el-button--primary.is-link {
+  color: var(--erp-blue);
+}
+/* 分页当前页 → 蓝 */
+.el-pagination .el-pager li.is-active {
+  color: var(--erp-blue);
+}
+/* 输入焦点环 → 蓝 */
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 1px var(--erp-blue) inset !important;
+}
+
+/* 次级"查询"按钮：浅蓝底蓝字 */
+.erp-btn-soft {
+  --el-button-bg-color: var(--erp-blue-soft);
+  --el-button-text-color: var(--erp-blue);
+  --el-button-border-color: transparent;
+  --el-button-hover-bg-color: #d6e7ff;
+  --el-button-hover-text-color: var(--erp-blue);
+  --el-button-hover-border-color: transparent;
+  --el-button-active-bg-color: #c4dcff;
+}
+
+/* 渐变强调字（页头关键词/问候语） */
+.erp-grad-text {
+  background: linear-gradient(92deg, var(--erp-blue), var(--erp-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .erp-table,
+  .erp-table * {
+    transition-duration: 0.01ms !important;
+  }
+}

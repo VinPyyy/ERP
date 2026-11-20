@@ -1,10 +1,16 @@
 <template>
-  <el-card shadow="never">
-    <div class="toolbar">
-      <el-button v-perm="'basedata:warehouse:create'" type="primary" @click="openEdit(null)">新增仓库</el-button>
-      <span class="hint">仓库是数据权限单位；建议 ≤10 个</span>
-    </div>
-    <el-table v-loading="loading" :data="warehouses" border>
+  <div class="erp-page">
+    <PageHeader title="仓库" accent="档案" subtitle="仓库是数据权限单位，建议控制在 10 个以内">
+      <template #extra>
+        <el-button v-perm="'basedata:warehouse:create'" type="primary" @click="openEdit(null)">
+          <template #icon><Plus /></template>
+          新增仓库
+        </el-button>
+      </template>
+    </PageHeader>
+
+    <el-card shadow="never">
+    <el-table v-loading="loading" :data="warehouses" class="erp-table">
       <el-table-column prop="code" label="编码" width="120" />
       <el-table-column prop="name" label="名称" min-width="140" />
       <el-table-column prop="address" label="地址" min-width="180" />
@@ -15,14 +21,21 @@
           <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button v-perm="'basedata:warehouse:edit'" link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button v-perm="'basedata:warehouse:delete'" link type="danger" @click="remove(row)">删除</el-button>
+          <el-button v-perm="'basedata:warehouse:edit'" link type="primary" @click="openEdit(row)">
+            <template #icon><Edit /></template>
+            编辑
+          </el-button>
+          <el-button v-perm="'basedata:warehouse:delete'" link type="danger" @click="remove(row)">
+            <template #icon><Delete /></template>
+            删除
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
-  </el-card>
+    </el-card>
+  </div>
 
   <el-dialog v-model="editVisible" :title="form.id ? '编辑仓库' : '新增仓库'" width="440px">
     <el-form :model="form" label-width="90px">
@@ -37,8 +50,14 @@
       <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" /></el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="editVisible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+      <el-button @click="editVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" :loading="saving" @click="save">
+        <template #icon><Check /></template>
+        保存
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -47,6 +66,7 @@
 import { reactive, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { warehouseApi, type WarehouseVO } from '@/api/basedata'
+import PageHeader from '@/components/PageHeader.vue'
 
 const loading = ref(false)
 const warehouses = ref<WarehouseVO[]>([])
@@ -96,6 +116,5 @@ async function remove(row: WarehouseVO) {
 </script>
 
 <style scoped>
-.toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; }
+/* 骨架样式统一走 tokens.css 的 .erp-* 类 */
 </style>

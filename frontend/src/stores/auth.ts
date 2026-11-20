@@ -5,6 +5,7 @@ export interface MeInfo {
   id: number
   username: string
   realName?: string
+  roles: string[] // 角色编码集合（/auth/me 返回）
   perms: string[]
   warehouses: number[] // 空数组=无可见仓库；含 0=全部仓库
 }

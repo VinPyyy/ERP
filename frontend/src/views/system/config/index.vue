@@ -1,18 +1,25 @@
 <template>
-  <el-card shadow="never">
-    <el-table v-loading="loading" :data="configs" border>
+  <div class="erp-page">
+    <PageHeader title="系统" accent="参数" subtitle="全局业务参数配置，修改后即时生效" />
+
+    <el-card shadow="never">
+    <el-table v-loading="loading" :data="configs" class="erp-table">
       <el-table-column prop="paramKey" label="参数键" width="260" />
       <el-table-column prop="paramName" label="参数名" width="180" />
       <el-table-column prop="paramValue" label="值" width="140" />
       <el-table-column prop="valueType" label="类型" width="100" />
       <el-table-column prop="remark" label="说明" min-width="240" />
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column label="操作" width="110" fixed="right">
         <template #default="{ row }">
-          <el-button v-perm="'system:config:edit'" link type="primary" @click="openEdit(row)">修改</el-button>
+          <el-button v-perm="'system:config:edit'" link type="primary" @click="openEdit(row)">
+            <template #icon><EditPen /></template>
+            修改
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
-  </el-card>
+    </el-card>
+  </div>
 
   <el-dialog v-model="dialogVisible" title="修改参数" width="420px">
     <el-form label-width="90px">
@@ -20,8 +27,14 @@
       <el-form-item label="新值" required><el-input v-model="newValue" /></el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" @click="save">保存</el-button>
+      <el-button @click="dialogVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" @click="save">
+        <template #icon><Check /></template>
+        保存
+      </el-button>
     </template>
   </el-dialog>
 </template>
@@ -30,6 +43,7 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { configApi, type ConfigVO } from '@/api/system'
+import PageHeader from '@/components/PageHeader.vue'
 
 const loading = ref(false)
 const configs = ref<ConfigVO[]>([])

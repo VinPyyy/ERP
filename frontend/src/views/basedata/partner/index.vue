@@ -1,16 +1,34 @@
 <template>
-  <el-card shadow="never">
-    <div class="toolbar">
+  <div class="erp-page">
+    <PageHeader :title="label" accent="管理" :subtitle="`${label}档案与往来信息`">
+      <template #extra>
+        <el-button v-perm="`${permPrefix}:create`" type="primary" @click="openEdit(null)">
+          <template #icon><Plus /></template>
+          新增{{ label }}
+        </el-button>
+      </template>
+    </PageHeader>
+
+    <el-card shadow="never">
+    <div class="erp-toolbar">
       <el-input v-model="keyword" :placeholder="`${label}编码/名称`" clearable style="width: 220px" @keyup.enter="doSearch" />
-      <el-button type="primary" @click="doSearch">查询</el-button>
-      <el-button v-perm="`${permPrefix}:create`" type="primary" @click="openEdit(null)">新增{{ label }}</el-button>
+      <el-button type="primary" class="erp-btn-soft" @click="doSearch">
+        <template #icon><Search /></template>
+        查询
+      </el-button>
       <el-upload v-perm="`${permPrefix}:import`" :show-file-list="false" accept=".xlsx" :http-request="doImport">
-        <el-button plain>导入 Excel</el-button>
+        <el-button plain>
+          <template #icon><Upload /></template>
+          导入 Excel
+        </el-button>
       </el-upload>
-      <el-button v-perm="`${permPrefix}:export`" plain @click="doExport">导出</el-button>
+      <el-button v-perm="`${permPrefix}:export`" plain @click="doExport">
+        <template #icon><Download /></template>
+        导出
+      </el-button>
     </div>
 
-    <el-table v-loading="loading" :data="rows" border>
+    <el-table v-loading="loading" :data="rows" class="erp-table">
       <el-table-column prop="code" label="编码" width="120" />
       <el-table-column prop="name" :label="`${label}名称`" min-width="160" />
       <el-table-column prop="contact" label="联系人" width="100" />
@@ -21,10 +39,16 @@
           <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="150" fixed="right">
         <template #default="{ row }">
-          <el-button v-perm="`${permPrefix}:edit`" link type="primary" @click="openEdit(row)">编辑</el-button>
-          <el-button v-perm="`${permPrefix}:delete`" link type="danger" @click="remove(row)">删除</el-button>
+          <el-button v-perm="`${permPrefix}:edit`" link type="primary" @click="openEdit(row)">
+            <template #icon><Edit /></template>
+            编辑
+          </el-button>
+          <el-button v-perm="`${permPrefix}:delete`" link type="danger" @click="remove(row)">
+            <template #icon><Delete /></template>
+            删除
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -34,10 +58,11 @@
       v-model:page-size="query.pageSize"
       :total="total"
       layout="total, sizes, prev, pager, next"
-      class="pager"
+      class="erp-pager"
       @change="load"
     />
-  </el-card>
+    </el-card>
+  </div>
 
   <el-dialog v-model="editVisible" :title="form.id ? `编辑${label}` : `新增${label}`" width="480px">
     <el-form :model="form" label-width="90px">
@@ -53,8 +78,14 @@
       <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" /></el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="editVisible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+      <el-button @click="editVisible = false">
+        <template #icon><Close /></template>
+        取消
+      </el-button>
+      <el-button type="primary" :loading="saving" @click="save">
+        <template #icon><Check /></template>
+        保存
+      </el-button>
     </template>
   </el-dialog>
 
@@ -67,7 +98,12 @@
         <el-table-column prop="reason" label="原因" />
       </el-table>
     </template>
-    <template #footer><el-button type="primary" @click="importVisible = false">关闭</el-button></template>
+    <template #footer>
+      <el-button type="primary" @click="importVisible = false">
+        <template #icon><Close /></template>
+        关闭
+      </el-button>
+    </template>
   </el-dialog>
 </template>
 
@@ -79,6 +115,7 @@ import {
   type PartnerVO, type PartnerSaveRequest, type ImportErrors
 } from '@/api/basedata'
 import { useTable } from '@/composables/useTable'
+import PageHeader from '@/components/PageHeader.vue'
 
 const props = defineProps<{ kind: 'customer' | 'supplier' }>()
 
@@ -146,7 +183,5 @@ async function doExport() {
 </script>
 
 <style scoped>
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-.pager { margin-top: 12px; justify-content: flex-end; }
 .mb8 { margin-bottom: 8px; }
 </style>

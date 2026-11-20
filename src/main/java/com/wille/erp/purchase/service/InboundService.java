@@ -1,8 +1,10 @@
 package com.wille.erp.purchase.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wille.erp.basedata.api.ProductReader;
 import com.wille.erp.common.api.ErrorCode;
+import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.enums.BizType;
 import com.wille.erp.common.enums.DocStatus;
 import com.wille.erp.common.enums.DocType;
@@ -12,9 +14,11 @@ import com.wille.erp.inventory.api.LotApi;
 import com.wille.erp.inventory.api.StockCmd.BizRef;
 import com.wille.erp.inventory.api.StockCmd.MoveCmd;
 import com.wille.erp.inventory.api.StockCmd.MoveLine;
+import com.wille.erp.inventory.api.StockCmd.ReverseCmd;
 import com.wille.erp.inventory.api.StockService;
 import com.wille.erp.purchase.dto.InboundItemRequest;
 import com.wille.erp.purchase.dto.InboundSaveRequest;
+import com.wille.erp.purchase.dto.InboundVO;
 import com.wille.erp.purchase.entity.PurInbound;
 import com.wille.erp.purchase.entity.PurInboundItem;
 import com.wille.erp.purchase.entity.PurOrder;
@@ -201,7 +205,7 @@ public class InboundService {
         if (updated == 0) {
             throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "单据状态已变化，请刷新后重试");
         }
-        stockService.reverse(new com.wille.erp.inventory.api.StockCmd.ReverseCmd(DocType.PUR_INBOUND, id));
+        stockService.reverse(new ReverseCmd(DocType.PUR_INBOUND, id));
         // done_qty 原子回减 + 行回退由 SQL CASE 判定（M4 审查 C1/I2）
         List<Long> affectedOrderIds = new ArrayList<>();
         for (PurInboundItem item : itemsOf(id)) {
@@ -338,28 +342,28 @@ public class InboundService {
         }
     }
 
-    public com.wille.erp.common.api.PageResult<PurInbound> page(int pageNum, int pageSize, String keyword) {
+    public PageResult<PurInbound> page(int pageNum, int pageSize, String keyword) {
         // M4 审查 I1：仓库数据权限（spec §5）；零仓库用户查空而非放行
         Set<Long> scope = currentUser.warehouseScope();
         if (scope != null && scope.isEmpty()) {
-            com.wille.erp.common.api.PageResult<PurInbound> empty = new com.wille.erp.common.api.PageResult<>();
+            PageResult<PurInbound> empty = new PageResult<>();
             empty.setTotal(0);
             empty.setRecords(List.of());
             return empty;
         }
-        com.baomidou.mybatisplus.extension.plugins.pagination.Page<PurInbound> page = inboundMapper.selectPage(
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize),
+        Page<PurInbound> page = inboundMapper.selectPage(
+                new Page<>(pageNum, pageSize),
                 Wrappers.<PurInbound>lambdaQuery()
                         .in(scope != null, PurInbound::getWarehouseId, scope == null ? Set.of() : scope)
                         .like(keyword != null && !keyword.isBlank(), PurInbound::getDocNo, keyword)
                         .orderByDesc(PurInbound::getId));
-        return com.wille.erp.common.api.PageResult.of(page);
+        return PageResult.of(page);
     }
 
-    public com.wille.erp.purchase.dto.InboundVO get(Long id) {
+    public InboundVO get(Long id) {
         PurInbound doc = requireDoc(id);
         requireWarehouseVisible(doc.getWarehouseId());
-        com.wille.erp.purchase.dto.InboundVO vo = new com.wille.erp.purchase.dto.InboundVO();
+        InboundVO vo = new InboundVO();
         vo.setDoc(doc);
         vo.setItems(itemsOf(id));
         return vo;

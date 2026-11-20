@@ -1,14 +1,19 @@
 package com.wille.erp.purchase.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.api.R;
 import com.wille.erp.purchase.dto.ReturnSaveRequest;
+import com.wille.erp.purchase.dto.ReturnVO;
+import com.wille.erp.purchase.entity.PurReturn;
 import com.wille.erp.purchase.service.ReturnService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -55,18 +60,18 @@ public class ReturnController {
         return R.ok();
     }
 
-    @org.springframework.web.bind.annotation.GetMapping
+    @GetMapping
     @SaCheckPermission("purchase:return:list")
-    public R<com.wille.erp.common.api.PageResult<com.wille.erp.purchase.entity.PurReturn>> page(
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int pageNum,
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int pageSize,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String keyword) {
+    public R<PageResult<PurReturn>> page(
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String keyword) {
         return R.ok(returnService.page(pageNum, pageSize, keyword));
     }
 
-    @org.springframework.web.bind.annotation.GetMapping("/{id}")
+    @GetMapping("/{id}")
     @SaCheckPermission("purchase:return:list")
-    public R<com.wille.erp.purchase.dto.ReturnVO> get(@PathVariable Long id) {
+    public R<ReturnVO> get(@PathVariable Long id) {
         return R.ok(returnService.get(id));
     }
 }

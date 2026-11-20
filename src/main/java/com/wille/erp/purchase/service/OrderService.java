@@ -1,8 +1,10 @@
 package com.wille.erp.purchase.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wille.erp.basedata.api.ProductReader;
 import com.wille.erp.common.api.ErrorCode;
+import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.enums.DocStatus;
 import com.wille.erp.common.enums.DocType;
 import com.wille.erp.common.exception.BizException;
@@ -10,6 +12,7 @@ import com.wille.erp.purchase.dto.InboundItemRequest;
 import com.wille.erp.purchase.dto.InboundSaveRequest;
 import com.wille.erp.purchase.dto.OrderItemRequest;
 import com.wille.erp.purchase.dto.OrderSaveRequest;
+import com.wille.erp.purchase.dto.OrderVO;
 import com.wille.erp.purchase.entity.PurInbound;
 import com.wille.erp.purchase.entity.PurOrder;
 import com.wille.erp.purchase.entity.PurOrderItem;
@@ -212,27 +215,27 @@ public class OrderService {
         return doc;
     }
 
-    public com.wille.erp.common.api.PageResult<PurOrder> page(int pageNum, int pageSize, String keyword) {
+    public PageResult<PurOrder> page(int pageNum, int pageSize, String keyword) {
         Set<Long> scope = currentUser.warehouseScope();
         if (scope != null && scope.isEmpty()) {
-            com.wille.erp.common.api.PageResult<PurOrder> empty = new com.wille.erp.common.api.PageResult<>();
+            PageResult<PurOrder> empty = new PageResult<>();
             empty.setTotal(0);
             empty.setRecords(List.of());
             return empty;
         }
-        com.baomidou.mybatisplus.extension.plugins.pagination.Page<PurOrder> page = orderMapper.selectPage(
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize),
+        Page<PurOrder> page = orderMapper.selectPage(
+                new Page<>(pageNum, pageSize),
                 Wrappers.<PurOrder>lambdaQuery()
                         .in(scope != null, PurOrder::getWarehouseId, scope == null ? Set.of() : scope)
                         .like(keyword != null && !keyword.isBlank(), PurOrder::getDocNo, keyword)
                         .orderByDesc(PurOrder::getId));
-        return com.wille.erp.common.api.PageResult.of(page);
+        return PageResult.of(page);
     }
 
-    public com.wille.erp.purchase.dto.OrderVO get(Long id) {
+    public OrderVO get(Long id) {
         PurOrder doc = requireDoc(id);
         requireWarehouseVisible(doc.getWarehouseId());
-        com.wille.erp.purchase.dto.OrderVO vo = new com.wille.erp.purchase.dto.OrderVO();
+        OrderVO vo = new OrderVO();
         vo.setDoc(doc);
         vo.setItems(orderItemMapper.selectList(Wrappers.<PurOrderItem>lambdaQuery()
                 .eq(PurOrderItem::getDocId, id).orderByAsc(PurOrderItem::getLineNo)));

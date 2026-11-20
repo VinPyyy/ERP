@@ -1,14 +1,20 @@
 package com.wille.erp.purchase.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.api.R;
 import com.wille.erp.purchase.dto.InboundSaveRequest;
+import com.wille.erp.purchase.dto.InboundVO;
+import com.wille.erp.purchase.entity.PurInbound;
+import com.wille.erp.purchase.service.ReturnService;
 import com.wille.erp.purchase.service.InboundService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,7 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class InboundController {
 
     private final InboundService inboundService;
-    private final com.wille.erp.purchase.service.ReturnService returnService;
+    private final ReturnService returnService;
 
     @Data
     public static class VoidRequest {
@@ -56,18 +62,18 @@ public class InboundController {
         return R.ok();
     }
 
-    @org.springframework.web.bind.annotation.GetMapping
+    @GetMapping
     @SaCheckPermission("purchase:inbound:list")
-    public R<com.wille.erp.common.api.PageResult<com.wille.erp.purchase.entity.PurInbound>> page(
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int pageNum,
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int pageSize,
-            @org.springframework.web.bind.annotation.RequestParam(required = false) String keyword) {
+    public R<PageResult<PurInbound>> page(
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String keyword) {
         return R.ok(inboundService.page(pageNum, pageSize, keyword));
     }
 
-    @org.springframework.web.bind.annotation.GetMapping("/{id}")
+    @GetMapping("/{id}")
     @SaCheckPermission("purchase:inbound:list")
-    public R<com.wille.erp.purchase.dto.InboundVO> get(@PathVariable Long id) {
+    public R<InboundVO> get(@PathVariable Long id) {
         return R.ok(inboundService.get(id));
     }
 

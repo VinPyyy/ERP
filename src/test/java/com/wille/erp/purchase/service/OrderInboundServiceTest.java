@@ -6,9 +6,12 @@ import com.wille.erp.basedata.entity.BaseProduct;
 import com.wille.erp.basedata.entity.BaseSupplier;
 import com.wille.erp.basedata.entity.BaseWarehouse;
 import com.wille.erp.common.api.ErrorCode;
+import com.wille.erp.common.enums.DocStatus;
 import com.wille.erp.common.enums.MgmtMode;
 import com.wille.erp.common.enums.SnStatus;
 import com.wille.erp.common.exception.BizException;
+import com.wille.erp.inventory.entity.InvCount;
+import com.wille.erp.inventory.entity.InvCountItem;
 import com.wille.erp.inventory.entity.InvLot;
 import com.wille.erp.inventory.entity.InvSn;
 import com.wille.erp.inventory.entity.InvStock;
@@ -17,7 +20,8 @@ import com.wille.erp.inventory.mapper.InvCountMapper;
 import com.wille.erp.inventory.mapper.InvLotMapper;
 import com.wille.erp.inventory.mapper.InvSnMapper;
 import com.wille.erp.inventory.mapper.InvStockMapper;
-import com.wille.erp.support.StockInvariantAsserter;
+import com.wille.erp.purchase.dto.InboundItemRequest;
+import com.wille.erp.purchase.dto.InboundSaveRequest;
 import com.wille.erp.purchase.dto.OrderItemRequest;
 import com.wille.erp.purchase.dto.OrderSaveRequest;
 import com.wille.erp.purchase.entity.PurInbound;
@@ -29,6 +33,8 @@ import com.wille.erp.purchase.mapper.PurInboundMapper;
 import com.wille.erp.purchase.mapper.PurOrderItemMapper;
 import com.wille.erp.purchase.mapper.PurOrderMapper;
 import com.wille.erp.support.DataFactory;
+import com.wille.erp.support.StockInvariantAsserter;
+import com.wille.erp.system.api.ConfigService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +48,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -83,11 +90,11 @@ class OrderInboundServiceTest {
     @Autowired
     private DataFactory dataFactory;
     @Autowired
-    private com.wille.erp.system.api.ConfigService configService;
+    private ConfigService configService;
 
     @AfterEach
     void restoreRatio() {
-        configService.update(com.wille.erp.system.api.ConfigService.KEY_OVER_RECEIVE_RATIO, "0");
+        configService.update(ConfigService.KEY_OVER_RECEIVE_RATIO, "0");
     }
 
     @BeforeEach
@@ -149,7 +156,7 @@ class OrderInboundServiceTest {
     @Test
     void overReceiveBoundaryMatrix() {
         // ratio=0.1：done ≤ qty×1.1 放行；超比例拒绝（40001）
-        configService.update(com.wille.erp.system.api.ConfigService.KEY_OVER_RECEIVE_RATIO, "0.1");
+        configService.update(ConfigService.KEY_OVER_RECEIVE_RATIO, "0.1");
         BaseWarehouse wh = dataFactory.warehouse("OI-W2");
         BaseSupplier sup = dataFactory.supplier("OI-S2");
         BaseProduct p = dataFactory.product("OI-P2", MgmtMode.NONE);
@@ -264,10 +271,10 @@ class OrderInboundServiceTest {
         Long orderId = order(wh, sup, p, "2", "30");
         orderService.audit(orderId);
 
-        com.wille.erp.purchase.dto.InboundSaveRequest request = draftInbound(
+        InboundSaveRequest request = draftInbound(
                 orderId, wh, sup, p, "2", "30", orderLine(orderId).getId());
         request.getItems().get(0).setLotNo("OI-L9");
-        request.getItems().get(0).setProductionDate(java.time.LocalDate.of(2026, 3, 1));
+        request.getItems().get(0).setProductionDate(LocalDate.of(2026, 3, 1));
         request.getItems().get(0).setSnList(List.of("OI-SN1", "OI-SN2"));
         Long inboundId = inboundService.create(request);
         inboundService.audit(inboundId);
@@ -294,15 +301,15 @@ class OrderInboundServiceTest {
         Long inboundId = inboundService.create(draftInbound(orderId, wh, sup, p, "5", "5", orderLine(orderId).getId()));
 
         // 手工造 COUNTING 盘点单覆盖该 SKU（ADR-0004 状态即锁）
-        com.wille.erp.inventory.entity.InvCount count = new com.wille.erp.inventory.entity.InvCount();
+        InvCount count = new InvCount();
         count.setDocNo("PD-LOCK-" + System.nanoTime());
-        count.setStatus(com.wille.erp.common.enums.DocStatus.COUNTING);
-        count.setDocDate(java.time.LocalDate.now());
+        count.setStatus(DocStatus.COUNTING);
+        count.setDocDate(LocalDate.now());
         count.setCurrency("CNY");
         count.setWarehouseId(wh.getId());
         count.setFinFlag(0);
         countMapper.insert(count);
-        com.wille.erp.inventory.entity.InvCountItem ci = new com.wille.erp.inventory.entity.InvCountItem();
+        InvCountItem ci = new InvCountItem();
         ci.setDocId(count.getId());
         ci.setLineNo(1);
         ci.setSkuId(p.getId());
@@ -321,7 +328,7 @@ class OrderInboundServiceTest {
         BaseSupplier sup = dataFactory.supplier("OI-S11");
         BaseProduct p = dataFactory.product("OI-P11", MgmtMode.NONE);
 
-        com.wille.erp.purchase.dto.InboundSaveRequest request = draftInbound(null, wh, sup, p, "7", "3", null);
+        InboundSaveRequest request = draftInbound(null, wh, sup, p, "7", "3", null);
         Long inboundId = inboundService.create(request);
         inboundService.audit(inboundId);
 
@@ -336,7 +343,7 @@ class OrderInboundServiceTest {
     @Test
     void voidInboundOverReceivedKeepsOrderCompleted() {
         // I2：溢收后部分作废、done 仍 ≥ qty → 行保持 30、头保持 COMPLETED
-        configService.update(com.wille.erp.system.api.ConfigService.KEY_OVER_RECEIVE_RATIO, "0.1");
+        configService.update(ConfigService.KEY_OVER_RECEIVE_RATIO, "0.1");
         BaseWarehouse wh = dataFactory.warehouse("OI-W12");
         BaseSupplier sup = dataFactory.supplier("OI-S12");
         BaseProduct p = dataFactory.product("OI-P12", MgmtMode.NONE);
@@ -414,7 +421,7 @@ class OrderInboundServiceTest {
         BaseWarehouse wh = dataFactory.warehouse("OI-W17");
         BaseSupplier sup = dataFactory.supplier("OI-S17");
         BaseProduct p = dataFactory.product("OI-P17", MgmtMode.SN);
-        com.wille.erp.purchase.dto.InboundSaveRequest request = draftInbound(null, wh, sup, p, "1.5", "5", null);
+        InboundSaveRequest request = draftInbound(null, wh, sup, p, "1.5", "5", null);
         request.getItems().get(0).setSnList(List.of("OI-SNA"));
         Long inboundId = inboundService.create(request);
 
@@ -454,14 +461,14 @@ class OrderInboundServiceTest {
         assertThat(inboundService.page(1, 20, null).getRecords()).isEmpty();
     }
 
-    private com.wille.erp.purchase.dto.InboundSaveRequest draftInbound(Long orderId, BaseWarehouse wh,
+    private InboundSaveRequest draftInbound(Long orderId, BaseWarehouse wh,
                                                                        BaseSupplier sup, BaseProduct p,
                                                                        String qty, String price, Long sourceItemId) {
-        com.wille.erp.purchase.dto.InboundSaveRequest request = new com.wille.erp.purchase.dto.InboundSaveRequest();
+        InboundSaveRequest request = new InboundSaveRequest();
         request.setSupplierId(sup.getId());
         request.setWarehouseId(wh.getId());
         request.setSourceOrderId(orderId);
-        com.wille.erp.purchase.dto.InboundItemRequest line = new com.wille.erp.purchase.dto.InboundItemRequest();
+        InboundItemRequest line = new InboundItemRequest();
         line.setSkuId(p.getId());
         line.setQty(bd(qty));
         line.setPrice(bd(price));

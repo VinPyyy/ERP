@@ -1,6 +1,7 @@
 package com.wille.erp.purchase.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.wille.erp.basedata.api.ProductReader;
 import com.wille.erp.common.api.ErrorCode;
 import com.wille.erp.common.api.PageResult;
@@ -13,6 +14,7 @@ import com.wille.erp.inventory.api.LotApi;
 import com.wille.erp.inventory.api.StockCmd.BizRef;
 import com.wille.erp.inventory.api.StockCmd.MoveCmd;
 import com.wille.erp.inventory.api.StockCmd.MoveLine;
+import com.wille.erp.inventory.api.StockCmd.ReverseCmd;
 import com.wille.erp.inventory.api.StockService;
 import com.wille.erp.purchase.dto.ReturnItemRequest;
 import com.wille.erp.purchase.dto.ReturnSaveRequest;
@@ -37,7 +39,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -167,7 +171,7 @@ public class ReturnService {
         if (from == DocStatus.DRAFT) {
             return;
         }
-        stockService.reverse(new com.wille.erp.inventory.api.StockCmd.ReverseCmd(DocType.PUR_RETURN, id));
+        stockService.reverse(new ReverseCmd(DocType.PUR_RETURN, id));
     }
 
     /**
@@ -205,7 +209,7 @@ public class ReturnService {
                     line.setReason("入库单退货（待补充）");
                     return line;
                 })
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .toList();
         if (lines.isEmpty()) {
             throw new BizException(ErrorCode.PARAM_INVALID, "该入库单无剩余可退数量");
@@ -241,7 +245,7 @@ public class ReturnService {
         }
     }
 
-    private Map<Long, BigDecimal> sumReturnedBySourceLine(java.util.Collection<Long> sourceLineIds, DocStatus... statuses) {
+    private Map<Long, BigDecimal> sumReturnedBySourceLine(Collection<Long> sourceLineIds, DocStatus... statuses) {
         List<Long> docIds = returnMapper.selectList(Wrappers.<PurReturn>lambdaQuery()
                         .in(PurReturn::getStatus, (Object[]) statuses))
                 .stream().map(PurReturn::getId).toList();
@@ -381,8 +385,8 @@ public class ReturnService {
             empty.setRecords(List.of());
             return empty;
         }
-        com.baomidou.mybatisplus.extension.plugins.pagination.Page<PurReturn> page = returnMapper.selectPage(
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize),
+        Page<PurReturn> page = returnMapper.selectPage(
+                new Page<>(pageNum, pageSize),
                 Wrappers.<PurReturn>lambdaQuery()
                         .in(scope != null, PurReturn::getWarehouseId, scope == null ? Set.of() : scope)
                         .like(keyword != null && !keyword.isBlank(), PurReturn::getDocNo, keyword)

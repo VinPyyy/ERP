@@ -7,13 +7,20 @@ import com.wille.erp.basedata.entity.BaseSupplier;
 import com.wille.erp.basedata.entity.BaseWarehouse;
 import com.wille.erp.common.api.ErrorCode;
 import com.wille.erp.common.enums.BizType;
+import com.wille.erp.common.enums.DocStatus;
 import com.wille.erp.common.enums.MgmtMode;
 import com.wille.erp.common.enums.SnStatus;
 import com.wille.erp.common.exception.BizException;
+import com.wille.erp.inventory.entity.InvCount;
+import com.wille.erp.inventory.entity.InvCountItem;
 import com.wille.erp.inventory.entity.InvFlow;
+import com.wille.erp.inventory.entity.InvLot;
 import com.wille.erp.inventory.entity.InvSn;
 import com.wille.erp.inventory.entity.InvStock;
+import com.wille.erp.inventory.mapper.InvCountItemMapper;
+import com.wille.erp.inventory.mapper.InvCountMapper;
 import com.wille.erp.inventory.mapper.InvFlowMapper;
+import com.wille.erp.inventory.mapper.InvLotMapper;
 import com.wille.erp.inventory.mapper.InvSnMapper;
 import com.wille.erp.inventory.mapper.InvStockMapper;
 import com.wille.erp.purchase.dto.InboundItemRequest;
@@ -23,8 +30,11 @@ import com.wille.erp.purchase.dto.OrderSaveRequest;
 import com.wille.erp.purchase.dto.ReturnItemRequest;
 import com.wille.erp.purchase.dto.ReturnSaveRequest;
 import com.wille.erp.purchase.entity.PurInboundItem;
+import com.wille.erp.purchase.entity.PurReturn;
 import com.wille.erp.purchase.entity.PurReturnItem;
 import com.wille.erp.purchase.mapper.PurInboundItemMapper;
+import com.wille.erp.purchase.mapper.PurReturnItemMapper;
+import com.wille.erp.purchase.mapper.PurReturnMapper;
 import com.wille.erp.support.DataFactory;
 import com.wille.erp.support.StockInvariantAsserter;
 import org.junit.jupiter.api.AfterEach;
@@ -40,6 +50,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,15 +84,15 @@ class ReturnServiceTest {
     @Autowired
     private DataFactory dataFactory;
     @Autowired
-    private com.wille.erp.purchase.mapper.PurReturnMapper returnMapper;
+    private PurReturnMapper returnMapper;
     @Autowired
-    private com.wille.erp.purchase.mapper.PurReturnItemMapper returnItemMapper;
+    private PurReturnItemMapper returnItemMapper;
     @Autowired
-    private com.wille.erp.inventory.mapper.InvCountMapper countMapper;
+    private InvCountMapper countMapper;
     @Autowired
-    private com.wille.erp.inventory.mapper.InvCountItemMapper countItemMapper;
+    private InvCountItemMapper countItemMapper;
     @Autowired
-    private com.wille.erp.inventory.mapper.InvLotMapper lotMapper;
+    private InvLotMapper lotMapper;
 
     @BeforeEach
     void bindAdmin() {
@@ -390,15 +401,15 @@ class ReturnServiceTest {
         // I9：盘点锁同样拦退货审核（计划审查重点 5 的退货侧补位）
         Fixture f = fixture("LOCK", MgmtMode.NONE);
         Long rid = returnService.create(returnReq(f, "4", null, "退货"));
-        com.wille.erp.inventory.entity.InvCount count = new com.wille.erp.inventory.entity.InvCount();
+        InvCount count = new InvCount();
         count.setDocNo("PD-RT-LOCK-" + System.nanoTime());
-        count.setStatus(com.wille.erp.common.enums.DocStatus.COUNTING);
-        count.setDocDate(java.time.LocalDate.now());
+        count.setStatus(DocStatus.COUNTING);
+        count.setDocDate(LocalDate.now());
         count.setCurrency("CNY");
         count.setWarehouseId(f.wh().getId());
         count.setFinFlag(0);
         countMapper.insert(count);
-        com.wille.erp.inventory.entity.InvCountItem ci = new com.wille.erp.inventory.entity.InvCountItem();
+        InvCountItem ci = new InvCountItem();
         ci.setDocId(count.getId());
         ci.setLineNo(1);
         ci.setSkuId(f.p().getId());
@@ -430,10 +441,10 @@ class ReturnServiceTest {
 
         returnService.audit(rid);
 
-        com.wille.erp.inventory.entity.InvLot lot = lotMapper.selectOne(
-                Wrappers.<com.wille.erp.inventory.entity.InvLot>lambdaQuery()
-                        .eq(com.wille.erp.inventory.entity.InvLot::getSkuId, f.p().getId())
-                        .eq(com.wille.erp.inventory.entity.InvLot::getLotNo, "RTL-LOT-1"));
+        InvLot lot = lotMapper.selectOne(
+                Wrappers.<InvLot>lambdaQuery()
+                        .eq(InvLot::getSkuId, f.p().getId())
+                        .eq(InvLot::getLotNo, "RTL-LOT-1"));
         PurReturnItem row = returnItemMapper.selectList(Wrappers.<PurReturnItem>lambdaQuery()
                 .eq(PurReturnItem::getDocId, rid)).get(0);
         assertThat(row.getLotId()).isEqualTo(lot.getId());
@@ -492,7 +503,7 @@ class ReturnServiceTest {
 
         Long draftId = returnService.createFromInbound(f.inboundId());
 
-        com.wille.erp.purchase.entity.PurReturn doc = returnMapper.selectById(draftId);
+        PurReturn doc = returnMapper.selectById(draftId);
         assertThat(doc.getSourceInboundId()).isEqualTo(f.inboundId());
         assertThat(doc.getWarehouseId()).isEqualTo(f.wh().getId());
         assertThat(doc.getStatus().getCode()).isEqualTo(10);

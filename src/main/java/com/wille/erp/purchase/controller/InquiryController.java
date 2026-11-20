@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.api.R;
 import com.wille.erp.purchase.dto.InquirySaveRequest;
+import com.wille.erp.purchase.entity.PurInquiry;
 import com.wille.erp.purchase.dto.InquiryVO;
 import com.wille.erp.purchase.service.InquiryService;
 import jakarta.validation.Valid;
@@ -62,7 +63,7 @@ public class InquiryController {
 
     @GetMapping
     @SaCheckPermission("purchase:inquiry:list")
-    public R<PageResult<com.wille.erp.purchase.entity.PurInquiry>> page(@RequestParam(defaultValue = "1") int pageNum,
+    public R<PageResult<PurInquiry>> page(@RequestParam(defaultValue = "1") int pageNum,
                                          @RequestParam(defaultValue = "20") int pageSize,
                                          @RequestParam(required = false) String keyword) {
         return R.ok(inquiryService.page(pageNum, pageSize, keyword));

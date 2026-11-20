@@ -49,11 +49,32 @@
 - `smoke_lock_*` 运行后处于限流锁定（≤15 分钟，进程内存态，后端重启即清）。
 - 已删的 `smoke_reuse_*` 行留在库里（用户名永久占用是设计语义，见 docs/system/username-lifecycle.md）。
 
+### `scripts/smoke/inventory-smoke.cjs` —— 库存与期初（M3c）
+
+```
+运行：node scripts/smoke/inventory-smoke.cjs
+前置：同上（后端 8080 + admin 种子）；每次运行新建 runid 仓库/商品，期初最终作废归零，净库存为 0
+```
+
+| # | 场景 | 期望 | 关联测试 |
+|---|---|---|---|
+| 01 | admin 加密登录 | code 0 + token | auth-smoke 01 |
+| 02-03 | 建 runid 仓库/商品（mgmtMode 传枚举名 `NONE`——JSON 数字按 ordinal 解析的坑） | code 0 | M2 CRUD |
+| 04-05 | 期初建单（含明细）→ 审核 | code 0 | `OpeningServiceTest` |
+| 06 | 库存查询 qty=10 金额=50 可用=10 | 断言数值 | `InventoryQueryServiceTest` |
+| 07 | 流水 OPENING 单条 balance=10 | 断言 | 同上 |
+| 08 | 重复期初审核 | 10001 含"期初" | `duplicateOpeningRowRejected` |
+| 09 | replay-check | consistent=true | `FlowReplayCheckerTest` |
+| 10-11 | 作废（原因必填）→ 归零且对账仍干净 | qty=0 consistent | `voidReversesBySnapshot` |
+
+**副作用**：runid 后缀仓库/商品行留在 dev 库（名称唯一不互踩）；期初全部最终作废，库存净变化 0。
+
 ## 3. 执行记录
 
 | 日期 | 套件 | 结果 | 备注 |
 |---|---|---|---|
 | 2026-11-20 | auth-smoke | 12/12 通过（连续两次运行验证 runid 隔离可复跑） | 由 TEMP 一次性脚本 ×3 合并落地；前身脚本场景全部保留并扩充至 12 例 |
+| 2026-11-21 | inventory-smoke | 11/11 通过（连续两次，净库存变化 0） | 首跑暴露 JSON 枚举按 ordinal 解析坑（mgmtMode:1→LOT），改枚举名后全绿 |
 
 ## 4. 落地规则（新增冒烟场景时）
 

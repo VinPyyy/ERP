@@ -9,7 +9,7 @@
 | M0 | 脚手架与工程基线 | issues/01 | ✅ resolved |
 | M1 | 认证与系统管理 | issues/02 | ✅ resolved |
 | M2 | 基础资料 + Excel 导入 | issues/03 | ✅ resolved |
-| M3 | 库存核心 + 期初（地基，测试最重） | issues/04 | ⏳ 未开始，下一个 |
+| M3 | 库存核心 + 期初（地基，测试最重） | issues/04 | ✅ resolved（M3a 内核 / M3b 期初 / M3c 查询与前端） |
 | M4 | 采购链路 | issues/05 | 未开始（依赖 04） |
 | M5 | 销售链路（一期闭环验收） | issues/06 | 未开始（依赖 04，可与 05 并行） |
 | M6 | 盘点 + 调拨 | issues/07 | 未开始（依赖 05、06） |
@@ -17,8 +17,9 @@
 
 ## 验证基线（均为实际运行结果）
 
-- `mvn test`：**86/86 通过**（common 10 + 认证/参数/编号/用户/角色服务 28 + Controller 薄测 12 + 基础资料服务/Excel 28 + contextLoads 1 + ArchUnit 7，含 50 线程并发取号、1000 行导入规模用例）
-- `npm run build`：通过（vue-tsc 类型检查 + vite，1681+ modules）
+- `mvn test`：**174/174 通过**（M0–M2 基线 86 + M3 新增 88：均价/门面 move/lock/property 200 步/对账/期初/Excel/查询/并发）
+- `npm run build`：通过（vue-tsc 类型检查 + vite）
+- 冒烟：`auth-smoke.cjs` 12/12、`inventory-smoke.cjs` 11/11（均连续两次可复跑，矩阵见 docs/testing/smoke-test-plan.md）
 - Flyway：`erp_dev`/`erp_test` 迁移至 v2——**41 张业务表**、112 权限点、11 编号规则、五预置角色
 - MySQL：`erp-mysql` 容器（mysql:8.0 @3307）healthy，initdb 自动建双库
 
@@ -43,6 +44,15 @@
 - 商品（四种管理维度 + 保质期/临期字段 + 有引用禁改模式经事件否决）/ 类别树（名称全局唯一）/ 客户 / 供应商 / 仓库 CRUD 全套端点与前端页
 - EasyExcel 导入：全量校验、有错整批不落库、行号级错误清单（文件内重复/撞库/必填/模式非法/类别解析）；商品与客户/供应商导出
 
+**库存核心（M3）**
+
+- StockService 门面（in/out/lock/unlock/release/reverse/available）：均价纯函数（金额权威/单价派生/出清归零）、(wh,sku) 升序 FOR UPDATE + INSERT IGNORE 占位防死锁、流水 insert-only 含余额快照、SN 物化/翻转/冲正三态、负库存开关
+- 双层订单锁定（locked=SUM(remain) 不变量）；快照冲正（reverse_flow_id 配对防重复，净零对不阻断作废）
+- 对账器四层不变量 + replay-check 端点 + 200 步随机序列 property 测试
+- 期初单：草稿 QC 取号、Excel 导入（行级错误）、审核入库存、作废冲正归零；同 wh×SKU 双入口查重
+- 库存三级查询（汇总/批次/SN）+ 流水查询 + SN 人工调整留痕；成本列后端脱敏；前端三页
+- 详见 docs/inventory/stock-model.md；最终审查修复记录在 .superpowers 账本（M3a 0C/10I、M3b 1C/9I 全修）
+
 ## 关键决策落档
 
 | 决策 | 记录位置 |
@@ -57,7 +67,7 @@
 
 ## 待办与风险登记
 
-- **M3 开工清单**：inv_stock/inv_lot_stock/inv_sn/inv_stock_lock/inv_flow 实体与 Mapper、StockService 门面（均价算法纯函数 + 顺序加锁 + 余额快照）、对账器（property 测试收尾断言）、期初单 + Excel（含批次/SN/期初价）、库存查询三级下钻页
-- 仓库/客户/供应商**删除引用校验** TODO（M3/M6 经事件补齐，工单 03 已登记）
+- **M4 开工清单**：状态机通用支撑（条件更新/作废框架复用期初模式）、询价/订单/入库/退货四单据、盘点锁 EXISTS 接入所有审核入口（spec §3d）、reverse 出库方向测试由 M4/M5 用例驱动（M3b 账本裁决）
+- M3 审查延后 Minor 清单见 .superpowers 账本（replay-check 仓库过滤、materializeLot 并发撞键、audit 不回填 item.lot_id 等 11 条，M4 开工前评估）
+- 仓库/客户/供应商**删除引用校验** TODO（M6 经事件补齐，工单 03 已登记）
 - 二期启动时：V2 admin 密码替换工具测试（`GenAdminHash`，@Disabled）与发票税率列 V3 迁移
-- 全程**未 commit**（维护者规则）：M0–M2 文件量大，建议按里程碑分三个 commit 由人审后落库

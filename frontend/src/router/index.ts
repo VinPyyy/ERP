@@ -39,8 +39,13 @@ const router = createRouter({
         // M3：库存
         { path: 'inventory/stock', name: 'inventory-stock', component: () => import('@/views/inventory/stock/index.vue'), meta: { title: '库存查询' } },
         { path: 'inventory/flow', name: 'inventory-flow', component: () => import('@/views/inventory/flow/index.vue'), meta: { title: '库存流水' } },
-        { path: 'inventory/opening', name: 'inventory-opening', component: () => import('@/views/inventory/opening/index.vue'), meta: { title: '期初库存' } }
-        // M4: /purchase/*  M5: /sale/*  M6: 盘点调拨  M7: /print/:docType/:id（Layout 外）
+        { path: 'inventory/opening', name: 'inventory-opening', component: () => import('@/views/inventory/opening/index.vue'), meta: { title: '期初库存' } },
+        // M4：采购
+        { path: 'purchase/inquiry', name: 'purchase-inquiry', component: () => import('@/views/purchase/inquiry/index.vue'), meta: { title: '询价单' } },
+        { path: 'purchase/order', name: 'purchase-order', component: () => import('@/views/purchase/order/index.vue'), meta: { title: '采购订单' } },
+        { path: 'purchase/inbound', name: 'purchase-inbound', component: () => import('@/views/purchase/inbound/index.vue'), meta: { title: '采购入库' } },
+        { path: 'purchase/return', name: 'purchase-return', component: () => import('@/views/purchase/return/index.vue'), meta: { title: '采购退货' } }
+        // M5: /sale/*  M6: 盘点调拨  M7: /print/:docType/:id（Layout 外）
       ]
     },
     {

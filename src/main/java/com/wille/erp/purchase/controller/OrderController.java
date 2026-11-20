@@ -67,4 +67,19 @@ public class OrderController {
     public R<Long> createInbound(@PathVariable Long id) {
         return R.ok(orderService.createInbound(id));
     }
+
+    @org.springframework.web.bind.annotation.GetMapping
+    @SaCheckPermission("purchase:order:list")
+    public R<com.wille.erp.common.api.PageResult<com.wille.erp.purchase.entity.PurOrder>> page(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int pageNum,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int pageSize,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String keyword) {
+        return R.ok(orderService.page(pageNum, pageSize, keyword));
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/{id}")
+    @SaCheckPermission("purchase:order:list")
+    public R<com.wille.erp.purchase.dto.OrderVO> get(@PathVariable Long id) {
+        return R.ok(orderService.get(id));
+    }
 }

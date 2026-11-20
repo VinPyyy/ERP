@@ -54,4 +54,19 @@ public class InboundController {
         inboundService.voidInbound(id, request.getReason());
         return R.ok();
     }
+
+    @org.springframework.web.bind.annotation.GetMapping
+    @SaCheckPermission("purchase:inbound:list")
+    public R<com.wille.erp.common.api.PageResult<com.wille.erp.purchase.entity.PurInbound>> page(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int pageNum,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int pageSize,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String keyword) {
+        return R.ok(inboundService.page(pageNum, pageSize, keyword));
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/{id}")
+    @SaCheckPermission("purchase:inbound:list")
+    public R<com.wille.erp.purchase.dto.InboundVO> get(@PathVariable Long id) {
+        return R.ok(inboundService.get(id));
+    }
 }

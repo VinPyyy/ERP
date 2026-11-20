@@ -233,4 +233,20 @@ public class ReturnService {
         return itemMapper.selectList(Wrappers.<PurReturnItem>lambdaQuery()
                 .eq(PurReturnItem::getDocId, docId).orderByAsc(PurReturnItem::getLineNo));
     }
+
+    public com.wille.erp.common.api.PageResult<PurReturn> page(int pageNum, int pageSize, String keyword) {
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<PurReturn> page = returnMapper.selectPage(
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize),
+                Wrappers.<PurReturn>lambdaQuery()
+                        .like(keyword != null && !keyword.isBlank(), PurReturn::getDocNo, keyword)
+                        .orderByDesc(PurReturn::getId));
+        return com.wille.erp.common.api.PageResult.of(page);
+    }
+
+    public com.wille.erp.purchase.dto.ReturnVO get(Long id) {
+        com.wille.erp.purchase.dto.ReturnVO vo = new com.wille.erp.purchase.dto.ReturnVO();
+        vo.setDoc(requireDoc(id));
+        vo.setItems(itemsOf(id));
+        return vo;
+    }
 }

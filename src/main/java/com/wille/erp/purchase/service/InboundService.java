@@ -286,4 +286,20 @@ public class InboundService {
             itemMapper.insert(row);
         }
     }
+
+    public com.wille.erp.common.api.PageResult<PurInbound> page(int pageNum, int pageSize, String keyword) {
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<PurInbound> page = inboundMapper.selectPage(
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize),
+                Wrappers.<PurInbound>lambdaQuery()
+                        .like(keyword != null && !keyword.isBlank(), PurInbound::getDocNo, keyword)
+                        .orderByDesc(PurInbound::getId));
+        return com.wille.erp.common.api.PageResult.of(page);
+    }
+
+    public com.wille.erp.purchase.dto.InboundVO get(Long id) {
+        com.wille.erp.purchase.dto.InboundVO vo = new com.wille.erp.purchase.dto.InboundVO();
+        vo.setDoc(requireDoc(id));
+        vo.setItems(itemsOf(id));
+        return vo;
+    }
 }

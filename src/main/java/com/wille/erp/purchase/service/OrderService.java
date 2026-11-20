@@ -205,4 +205,21 @@ public class OrderService {
         }
         return doc;
     }
+
+    public com.wille.erp.common.api.PageResult<PurOrder> page(int pageNum, int pageSize, String keyword) {
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<PurOrder> page = orderMapper.selectPage(
+                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize),
+                Wrappers.<PurOrder>lambdaQuery()
+                        .like(keyword != null && !keyword.isBlank(), PurOrder::getDocNo, keyword)
+                        .orderByDesc(PurOrder::getId));
+        return com.wille.erp.common.api.PageResult.of(page);
+    }
+
+    public com.wille.erp.purchase.dto.OrderVO get(Long id) {
+        com.wille.erp.purchase.dto.OrderVO vo = new com.wille.erp.purchase.dto.OrderVO();
+        vo.setDoc(requireDoc(id));
+        vo.setItems(orderItemMapper.selectList(Wrappers.<PurOrderItem>lambdaQuery()
+                .eq(PurOrderItem::getDocId, id).orderByAsc(PurOrderItem::getLineNo)));
+        return vo;
+    }
 }

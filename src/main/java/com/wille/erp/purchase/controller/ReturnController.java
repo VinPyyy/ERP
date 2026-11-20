@@ -54,4 +54,19 @@ public class ReturnController {
         returnService.voidReturn(id, request.getReason());
         return R.ok();
     }
+
+    @org.springframework.web.bind.annotation.GetMapping
+    @SaCheckPermission("purchase:return:list")
+    public R<com.wille.erp.common.api.PageResult<com.wille.erp.purchase.entity.PurReturn>> page(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int pageNum,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int pageSize,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) String keyword) {
+        return R.ok(returnService.page(pageNum, pageSize, keyword));
+    }
+
+    @org.springframework.web.bind.annotation.GetMapping("/{id}")
+    @SaCheckPermission("purchase:return:list")
+    public R<com.wille.erp.purchase.dto.ReturnVO> get(@PathVariable Long id) {
+        return R.ok(returnService.get(id));
+    }
 }

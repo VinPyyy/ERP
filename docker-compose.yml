@@ -1,0 +1,56 @@
+# ERP 生产部署（spec：Docker Compose → Linux 服务器）
+# 本地开发数据库也复用 mysql 服务：docker compose up -d mysql
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: erp-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${ERP_DB_PASSWORD:-erp_local_2026}
+      MYSQL_DATABASE: erp_dev
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"   # 避开本机 MySQL 5.7 的 3306
+    volumes:
+      - erp-mysql-data:/var/lib/mysql
+      - ./deploy/initdb:/docker-entrypoint-initdb.d:ro   # 放建 erp_test 库的脚本
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${ERP_DB_PASSWORD:-erp_local_2026}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.backend
+    container_name: erp-backend
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/erp_dev?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+      ERP_DB_PASSWORD: ${ERP_DB_PASSWORD:-erp_local_2026}
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: erp-frontend
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  erp-mysql-data:

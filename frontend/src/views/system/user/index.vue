@@ -1,0 +1,171 @@
+<template>
+  <el-card shadow="never">
+    <div class="toolbar">
+      <el-input v-model="keyword" placeholder="用户名/姓名" clearable style="width: 220px" @keyup.enter="doSearch" />
+      <el-select v-model="statusFilter" placeholder="状态" clearable style="width: 120px" @change="doSearch">
+        <el-option label="启用" :value="1" />
+        <el-option label="停用" :value="0" />
+      </el-select>
+      <el-button type="primary" @click="doSearch">查询</el-button>
+      <el-button v-perm="'system:user:create'" type="primary" plain @click="openCreate">新增用户</el-button>
+    </div>
+
+    <el-table v-loading="loading" :data="rows" border>
+      <el-table-column prop="username" label="用户名" width="140" />
+      <el-table-column prop="realName" label="姓名" width="120" />
+      <el-table-column prop="phone" label="手机" width="130" />
+      <el-table-column label="角色" min-width="160">
+        <template #default="{ row }">{{ row.roleNames.join('、') }}</template>
+      </el-table-column>
+      <el-table-column label="状态" width="80">
+        <template #default="{ row }">
+          <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="lastLoginTime" label="最后登录" width="170" />
+      <el-table-column label="操作" width="220" fixed="right">
+        <template #default="{ row }">
+          <el-button v-perm="'system:user:edit'" link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button v-perm="'system:user:reset-password'" link type="warning" @click="openReset(row)">重置密码</el-button>
+          <el-button v-perm="'system:user:delete'" link type="danger" :disabled="row.username === 'admin'" @click="remove(row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <el-pagination
+      v-model:current-page="query.pageNum"
+      v-model:page-size="query.pageSize"
+      :total="total"
+      layout="total, sizes, prev, pager, next"
+      class="pager"
+      @change="load"
+    />
+  </el-card>
+
+  <el-dialog v-model="dialogVisible" :title="form.id ? '编辑用户' : '新增用户'" width="520px">
+    <el-form :model="form" label-width="90px">
+      <el-form-item label="用户名" required>
+        <el-input v-model="form.username" :disabled="!!form.id" />
+      </el-form-item>
+      <el-form-item v-if="!form.id" label="密码" required>
+        <el-input v-model="form.password" type="password" show-password />
+      </el-form-item>
+      <el-form-item label="姓名"><el-input v-model="form.realName" /></el-form-item>
+      <el-form-item label="手机"><el-input v-model="form.phone" /></el-form-item>
+      <el-form-item label="角色">
+        <el-select v-model="form.roleIds" multiple style="width: 100%">
+          <el-option v-for="r in roles" :key="r.id" :label="r.roleName" :value="r.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="可见仓库">
+        <el-select v-model="form.warehouseIds" multiple style="width: 100%" placeholder="勾选「全部仓库」或选择具体仓库">
+          <el-option label="全部仓库" :value="0" />
+          <!-- 具体仓库选项 M2 接入 /api/basedata/warehouses -->
+        </el-select>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-switch v-model="form.status" :active-value="1" :inactive-value="0" active-text="启用" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="dialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+    </template>
+  </el-dialog>
+
+  <el-dialog v-model="resetVisible" title="重置密码" width="380px">
+    <el-input v-model="resetPassword" type="password" show-password placeholder="新密码（至少 6 位）" />
+    <template #footer>
+      <el-button @click="resetVisible = false">取消</el-button>
+      <el-button type="primary" @click="doReset">确定</el-button>
+    </template>
+  </el-dialog>
+</template>
+
+<script setup lang="ts">
+import { reactive, ref, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { userApi, roleApi, type UserVO, type UserSaveRequest, type RoleVO } from '@/api/system'
+import { useTable } from '@/composables/useTable'
+
+const { loading, rows, total, query, load, search } = useTable<UserVO>(
+  (q) => userApi.page(q)
+)
+
+const keyword = ref('')
+const statusFilter = ref<number | undefined>(undefined)
+
+function doSearch() {
+  query.keyword = keyword.value || undefined
+  query.status = statusFilter.value
+  search()
+}
+
+const roles = ref<RoleVO[]>([])
+const dialogVisible = ref(false)
+const saving = ref(false)
+const form = reactive<UserSaveRequest & { id?: number }>({
+  username: '', password: '', realName: '', phone: '', status: 1, roleIds: [], warehouseIds: []
+})
+
+const resetVisible = ref(false)
+const resetPassword = ref('')
+let resettingId = 0
+
+onMounted(async () => {
+  roles.value = await roleApi.list()
+})
+
+function openCreate() {
+  Object.assign(form, { id: undefined, username: '', password: '', realName: '', phone: '', status: 1, roleIds: [], warehouseIds: [] })
+  dialogVisible.value = true
+}
+
+function openEdit(row: UserVO) {
+  Object.assign(form, {
+    id: row.id, username: row.username, realName: row.realName, phone: row.phone,
+    status: row.status, roleIds: [...row.roleIds], warehouseIds: [...row.warehouseIds]
+  })
+  dialogVisible.value = true
+}
+
+async function save() {
+  saving.value = true
+  try {
+    if (form.id) {
+      await userApi.update(form.id, form)
+    } else {
+      await userApi.create(form)
+    }
+    ElMessage.success('已保存')
+    dialogVisible.value = false
+    await load()
+  } finally {
+    saving.value = false
+  }
+}
+
+function openReset(row: UserVO) {
+  resettingId = row.id
+  resetPassword.value = ''
+  resetVisible.value = true
+}
+
+async function doReset() {
+  await userApi.resetPassword(resettingId, resetPassword.value)
+  ElMessage.success('密码已重置')
+  resetVisible.value = false
+}
+
+async function remove(row: UserVO) {
+  await ElMessageBox.confirm(`确认删除用户 ${row.username}？`, '删除确认', { type: 'warning' })
+  await userApi.remove(row.id)
+  ElMessage.success('已删除')
+  await load()
+}
+</script>
+
+<style scoped>
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.pager { margin-top: 12px; justify-content: flex-end; }
+</style>

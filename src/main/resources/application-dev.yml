@@ -1,0 +1,12 @@
+# 开发环境：本机 Docker MySQL 8 容器（3307，避开本机 5.7 的 3306）
+# 容器拉起命令见 README/deploy 说明；密码可用环境变量 ERP_DB_PASSWORD 覆盖
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3307/erp_dev?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: root
+    password: ${ERP_DB_PASSWORD:erp_local_2026}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false

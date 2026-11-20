@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: erp
+  profiles:
+    active: dev
+  jackson:
+    default-property-inclusion: always
+
+server:
+  port: 8080
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+sa-token:
+  token-name: Authorization
+  timeout: 86400
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: uuid
+  is-log: false
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

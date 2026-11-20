@@ -1,0 +1,15 @@
+# 多阶段构建：Maven 编译 → JRE 运行
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /build
+COPY pom.xml .
+RUN mvn dependency:go-offline -q -B
+COPY src ./src
+RUN mvn package -DskipTests -q -B
+
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+ENV TZ=Asia/Shanghai
+COPY --from=build /build/target/*.jar app.jar
+RUN mkdir -p /app/logs
+EXPOSE 8080
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

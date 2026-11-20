@@ -77,6 +77,7 @@ export interface ConfigVO {
   paramName: string
   paramValue?: string
   valueType: string
+  remark?: string
 }
 
 export const configApi = {

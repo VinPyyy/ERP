@@ -59,4 +59,39 @@ class ConfigServiceTest {
         assertThatThrownBy(() -> configService.getInt("not.exist.key"))
                 .isInstanceOf(BizException.class);
     }
+
+    @Test
+    void updateRejectsBoolValueNotTrueFalse() {
+        assertThatThrownBy(() -> configService.update(ConfigService.KEY_ALLOW_NEGATIVE, "yes"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("true/false");
+        // 大小写严格：TRUE 也拒（Boolean.parseBoolean 会静默吞成 false，必须显式拒绝）
+        assertThatThrownBy(() -> configService.update(ConfigService.KEY_ALLOW_NEGATIVE, "TRUE"))
+                .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void updateRejectsDecimalValueNotNumeric() {
+        assertThatThrownBy(() -> configService.update(ConfigService.KEY_OVER_RECEIVE_RATIO, "abc"))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("小数");
+        assertThatThrownBy(() -> configService.update(ConfigService.KEY_OVER_RECEIVE_RATIO, "1.2.3"))
+                .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void updateRejectsBlankValue() {
+        assertThatThrownBy(() -> configService.update(ConfigService.KEY_ALLOW_NEGATIVE, ""))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("不能为空");
+    }
+
+    @Test
+    void updateKeepsValidValues() {
+        configService.update(ConfigService.KEY_ALLOW_NEGATIVE, "true");
+        configService.update(ConfigService.KEY_OVER_RECEIVE_RATIO, "0.10");
+        assertThat(configService.getBool(ConfigService.KEY_ALLOW_NEGATIVE)).isTrue();
+        assertThat(configService.getDecimal(ConfigService.KEY_OVER_RECEIVE_RATIO))
+                .isEqualByComparingTo(new BigDecimal("0.1"));
+    }
 }

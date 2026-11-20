@@ -39,6 +39,11 @@ import java.util.List;
  * 全系统唯一动库存入口（spec §3a/§3b/§3f）。约束：
  * 单事务；行按 skuId 升序 FOR UPDATE（ADR-0005，cmd 内单仓）；
  * 均价走 AveragePriceCalculator 纯函数；每笔写 insert-only 流水含余额快照。
+ *
+ * 事务边界契约：写方法（inbound/outbound/lock/unlock/release/reverse）只能经 Spring 代理
+ * 跨 bean 进入（外部注入调用），它们调用的私有辅助方法（move/lockOrCreate/writeBack/
+ * applyLotDelta/applySnReverse/insertFlow 等）共享调用方事务、无需也无法自带事务；
+ * 禁止在本类内新增 public @Transactional 方法并 this. 自调用（代理绕过、注解静默失效）。
  */
 @Service
 @RequiredArgsConstructor

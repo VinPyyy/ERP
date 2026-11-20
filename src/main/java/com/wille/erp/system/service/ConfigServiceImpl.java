@@ -53,7 +53,27 @@ public class ConfigServiceImpl implements ConfigService {
         validateByType(config.getValueType(), value);
         config.setParamValue(value);
         configMapper.updateById(config);
+        refreshCache(key, value);
+    }
+
+    /**
+     * 写事务内立即可见（"修改后即时生效"语义），同时登记回滚失效钩子：
+     * 事务未提交则逐出缓存键，下次读从 DB 重载已提交真值——
+     * 既不污染缓存（测试 rolledBackTransactionDoesNotPolluteCache 钉住），也避免 afterCommit 方案的事务内读不到问题。
+     */
+    private void refreshCache(String key, String value) {
         cache.put(key, value);
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int status) {
+                            if (status != STATUS_COMMITTED) {
+                                cache.remove(key);
+                            }
+                        }
+                    });
+        }
     }
 
     /**

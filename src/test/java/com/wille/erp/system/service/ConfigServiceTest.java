@@ -24,6 +24,8 @@ class ConfigServiceTest {
 
     @Autowired
     private ConfigService configService;
+    @Autowired
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @AfterEach
     void restoreSeedValues() {
@@ -93,5 +95,18 @@ class ConfigServiceTest {
         assertThat(configService.getBool(ConfigService.KEY_ALLOW_NEGATIVE)).isTrue();
         assertThat(configService.getDecimal(ConfigService.KEY_OVER_RECEIVE_RATIO))
                 .isEqualByComparingTo(new BigDecimal("0.1"));
+    }
+
+    @Test
+    void rolledBackTransactionDoesNotPolluteCache() {
+        // 缓存刷新必须挂在 afterCommit：事务回滚后进程缓存不得残留未提交值
+        org.springframework.transaction.support.TransactionTemplate template =
+                new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        template.executeWithoutResult(status -> {
+            configService.update(ConfigService.KEY_ALLOW_NEGATIVE, "true");
+            status.setRollbackOnly();
+        });
+
+        assertThat(configService.getBool(ConfigService.KEY_ALLOW_NEGATIVE)).isFalse();
     }
 }

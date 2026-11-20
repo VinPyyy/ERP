@@ -92,4 +92,42 @@ class StockServiceConcurrencyTest {
         assertThat(s.getQty()).isEqualByComparingTo(new BigDecimal("10"));
         assertThat(s.getCostAmount()).isEqualByComparingTo(new BigDecimal("100"));
     }
+
+    @Test
+    void concurrentOutboundOnExistingRowDoesNotDeadlock() throws Exception {
+        // 审查 Important-1：行已存在时无条件 INSERT IGNORE 会持 S 锁，双事务互等 → 1213 死锁
+        String suffix = Long.toString(System.nanoTime());
+        BaseWarehouse wh = dataFactory.warehouse("WHC" + suffix);
+        BaseProduct p = dataFactory.product("SKUC" + suffix, MgmtMode.NONE);
+        testSkuId = p.getId();
+        stockService.inbound(new MoveCmd(wh.getId(),
+                new BizRef(BizType.PUR_IN, DocType.PUR_INBOUND, 1L, "SEED"),
+                List.of(new MoveLine(p.getId(), new BigDecimal("100"), new BigDecimal("10"),
+                        null, null, 1L))));
+
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Runnable task = () -> {
+            try {
+                start.await();
+                stockService.outbound(new MoveCmd(wh.getId(),
+                        new BizRef(BizType.SALE_OUT, DocType.SAL_OUTBOUND, 2L, "OUT"),
+                        List.of(new MoveLine(p.getId(), new BigDecimal("10"), null, null, null, 2L))));
+            } catch (Throwable t) {
+                failure.compareAndSet(null, t);
+            }
+        };
+        Thread t1 = new Thread(task);
+        Thread t2 = new Thread(task);
+        t1.start();
+        t2.start();
+        start.countDown();
+        t1.join(30_000);
+        t2.join(30_000);
+
+        assertThat(failure.get()).isNull();
+        InvStock s = stockMapper.selectOne(Wrappers.<InvStock>lambdaQuery()
+                .eq(InvStock::getWarehouseId, wh.getId()).eq(InvStock::getSkuId, p.getId()));
+        assertThat(s.getQty()).isEqualByComparingTo(new BigDecimal("80"));
+    }
 }

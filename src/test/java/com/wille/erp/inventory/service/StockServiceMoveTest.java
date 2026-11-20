@@ -279,6 +279,63 @@ class StockServiceMoveTest {
     }
 
     @Test
+    void inboundNullPriceRejected() {
+        // 审查 Minor-4 升级：入库缺价 NPE→500，门面应挡
+        BaseWarehouse wh = dataFactory.warehouse("WH-NP");
+        BaseProduct p = dataFactory.product("SKU-NP", MgmtMode.NONE);
+        assertThatThrownBy(() -> inbound(wh.getId(), new MoveLine(p.getId(), bd("5"), null, null, null, 1L)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("价格");
+    }
+
+    @Test
+    void lotOfAnotherSkuRejected() {
+        // 审查 Important-7：批次归属不校验会静默污染批次追溯
+        BaseWarehouse wh = dataFactory.warehouse("WH-XLOT");
+        BaseProduct p1 = dataFactory.product("SKU-XLOT1", MgmtMode.LOT);
+        BaseProduct p2 = dataFactory.product("SKU-XLOT2", MgmtMode.LOT);
+        Long foreignLot = newLot(p2.getId(), "XLOTL");
+
+        assertThatThrownBy(() -> inbound(wh.getId(), new MoveLine(p1.getId(), bd("5"), bd("3"), foreignLot, null, 1L)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("批次");
+    }
+
+    @Test
+    void lotSnOutboundRejectsCrossLotSn() {
+        // 审查 Important-6：§3b 出库要求 SN 批次一致
+        BaseWarehouse wh = dataFactory.warehouse("WH-XSN");
+        BaseProduct p = dataFactory.product("SKU-XSN", MgmtMode.LOT_SN);
+        Long l1 = newLot(p.getId(), "XL1");
+        Long l2 = newLot(p.getId(), "XL2");
+        inbound(wh.getId(), new MoveLine(p.getId(), bd("1"), bd("5"), l1, List.of("XSA"), 1L));
+
+        assertThatThrownBy(() -> outbound(wh.getId(), new MoveLine(p.getId(), bd("1"), null, l2, List.of("XSA"), 2L)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("批次");
+    }
+
+    @Test
+    void lotSnReturnUpdatesLotId() {
+        // 审查 Important-5：§3b 退货翻回须更新仓库/批次
+        BaseWarehouse wh = dataFactory.warehouse("WH-RTN");
+        BaseWarehouse wh2 = dataFactory.warehouse("WH-RTN2");
+        BaseProduct p = dataFactory.product("SKU-RTN", MgmtMode.LOT_SN);
+        Long l1 = newLot(p.getId(), "RL1");
+        Long l2 = newLot(p.getId(), "RL2");
+        inbound(wh.getId(), new MoveLine(p.getId(), bd("1"), bd("5"), l1, List.of("RT1"), 1L));
+        outbound(wh.getId(), new MoveLine(p.getId(), bd("1"), null, l1, List.of("RT1"), 2L));
+
+        stockService.inbound(new MoveCmd(wh2.getId(),
+                new BizRef(BizType.SAL_RETURN_IN, DocType.SAL_RETURN, 666L, "RTN-LOT"),
+                List.of(new MoveLine(p.getId(), bd("1"), bd("5"), l2, List.of("RT1"), 3L))));
+
+        InvSn sn = sn(p.getId(), "RT1");
+        assertThat(sn.getLotId()).isEqualTo(l2);
+        assertThat(sn.getWarehouseId()).isEqualTo(wh2.getId());
+    }
+
+    @Test
     void availableIsQtyMinusLocked() {
         BaseWarehouse wh = dataFactory.warehouse("WH-AVAIL");
         BaseProduct p = dataFactory.product("SKU-AVAIL", MgmtMode.NONE);

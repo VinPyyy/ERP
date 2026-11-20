@@ -21,6 +21,12 @@ public interface StockService {
     /** 按订单行全额释放锁定 */
     void unlock(StockCmd.LockRef ref);
 
+    /**
+     * 部分核销（§3e.2 锁定转实扣，M5 出库审核调用）：
+     * remain_qty −= qty、locked_qty −= qty；qty 必须 ≤ remain_qty。
+     */
+    void release(StockCmd.LockRef ref, BigDecimal qty);
+
     /** 作废冲正：取原流水快照原路反向，reverse_flow_id 配对防重复（ADR-0003） */
     void reverse(StockCmd.ReverseCmd cmd);
 

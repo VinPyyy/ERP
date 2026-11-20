@@ -13,6 +13,7 @@ import com.wille.erp.inventory.core.AveragePriceCalculator.InResult;
 import com.wille.erp.inventory.core.AveragePriceCalculator.OutResult;
 import com.wille.erp.inventory.core.StockState;
 import com.wille.erp.inventory.entity.InvFlow;
+import com.wille.erp.inventory.entity.InvLot;
 import com.wille.erp.inventory.entity.InvLotStock;
 import com.wille.erp.inventory.entity.InvSn;
 import com.wille.erp.inventory.entity.InvStock;
@@ -74,6 +75,10 @@ public class StockServiceImpl implements StockService {
         List<StockCmd.LockLine> lines = cmd.lines().stream()
                 .sorted(Comparator.comparing(StockCmd.LockLine::skuId)).toList();
         for (StockCmd.LockLine line : lines) {
+            // 负数/零锁定会静默击穿可用量且骗过对账器（审查 Important-8）
+            if (line.qty() == null || line.qty().signum() <= 0) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "锁定数量必须大于 0");
+            }
             InvStock row = lockOrCreate(cmd.warehouseId(), line.skuId());
             if (!configService.getBool(ConfigService.KEY_ALLOW_NEGATIVE)) {
                 BigDecimal available = row.getQty().subtract(row.getLockedQty());
@@ -104,6 +109,11 @@ public class StockServiceImpl implements StockService {
                 .eq(InvStockLock::getLockDocId, ref.lockDocId())
                 .eq(InvStockLock::getLockItemId, ref.lockItemId())
                 .gt(InvStockLock::getRemainQty, BigDecimal.ZERO));
+        // 固定加锁顺序（审查 Important-2）：多行 ref 乱序锁 inv_stock 会与 lock/move 交叉 AB-BA
+        rows = rows.stream()
+                .sorted(Comparator.comparing(InvStockLock::getWarehouseId)
+                        .thenComparing(InvStockLock::getSkuId))
+                .toList();
         for (InvStockLock lock : rows) {
             InvStock row = lockOrCreate(lock.getWarehouseId(), lock.getSkuId());
             row.setLockedQty(row.getLockedQty().subtract(lock.getRemainQty()));
@@ -115,8 +125,34 @@ public class StockServiceImpl implements StockService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void release(StockCmd.LockRef ref, BigDecimal qty) {
+        if (qty == null || qty.signum() <= 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "核销数量必须大于 0");
+        }
+        List<InvStockLock> rows = lockMapper.selectList(Wrappers.<InvStockLock>lambdaQuery()
+                .eq(InvStockLock::getLockDocType, ref.lockDocType().name())
+                .eq(InvStockLock::getLockDocId, ref.lockDocId())
+                .eq(InvStockLock::getLockItemId, ref.lockItemId())
+                .gt(InvStockLock::getRemainQty, BigDecimal.ZERO));
+        if (rows.size() != 1) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "锁定明细不存在或已核销完毕");
+        }
+        InvStockLock lock = rows.get(0);
+        if (lock.getRemainQty().compareTo(qty) < 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "核销数量超过剩余锁定");
+        }
+        InvStock row = lockOrCreate(lock.getWarehouseId(), lock.getSkuId());
+        lock.setRemainQty(lock.getRemainQty().subtract(qty));
+        row.setLockedQty(row.getLockedQty().subtract(qty));
+        lockMapper.updateById(lock);
+        stockMapper.updateById(row);
+    }
+
+    @Override
     public void reverse(StockCmd.ReverseCmd cmd) {
-        throw new UnsupportedOperationException("Task 6/M3b");
+        // 裁决（最终审查 Important-4）：入库类冲正随 M3b 期初作废一并实现并测试
+        throw new UnsupportedOperationException("M3b Task 1");
     }
 
     @Override
@@ -134,7 +170,7 @@ public class StockServiceImpl implements StockService {
         if (product == null) {
             throw new BizException(ErrorCode.PARAM_INVALID, "商品不存在: " + line.skuId());
         }
-        validateShape(product, line);
+        validateShape(product, line, inbound);
 
         InvStock row = lockOrCreate(warehouseId, line.skuId());
         StockState before = state(row);
@@ -171,14 +207,21 @@ public class StockServiceImpl implements StockService {
 
     // ---------- 校验 ----------
 
-    private void validateShape(ProductReader.ProductInfo product, StockCmd.MoveLine line) {
+    private void validateShape(ProductReader.ProductInfo product, StockCmd.MoveLine line, boolean inbound) {
         if (line.qty() == null || line.qty().signum() <= 0) {
             throw new BizException(ErrorCode.PARAM_INVALID, "变动数量必须大于 0");
         }
+        if (inbound && line.price() == null) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "入库必须携带入账价格");
+        }
         boolean hasSn = line.snList() != null && !line.snList().isEmpty();
         if (product.lotManaged()) {
-            if (line.lotId() == null || lotMapper.selectById(line.lotId()) == null) {
-                throw new BizException(ErrorCode.PARAM_INVALID, "管批次商品必须指定有效批次");
+            if (line.lotId() == null) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "管批次商品必须指定批次");
+            }
+            InvLot lot = lotMapper.selectById(line.lotId());
+            if (lot == null || !lot.getSkuId().equals(line.skuId())) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "批次不存在或不属于该商品");
             }
         } else if (line.lotId() != null) {
             throw new BizException(ErrorCode.PARAM_INVALID, "该商品不管理批次");
@@ -217,15 +260,22 @@ public class StockServiceImpl implements StockService {
                         || !warehouseId.equals(snRow.getWarehouseId())) {
                     throw new BizException(ErrorCode.SN_STATUS_INVALID, "SN 不在当前仓库或在库状态不符: " + sn);
                 }
+                // §3b：批次+SN 模式出库须批次一致，否则 SN-批次对应关系静默损坏（审查 Important-6）
+                if (product.lotManaged() && !line.lotId().equals(snRow.getLotId())) {
+                    throw new BizException(ErrorCode.SN_STATUS_INVALID, "SN 批次与出库行不一致: " + sn);
+                }
             }
         }
     }
 
     // ---------- 主行 ----------
 
-    /** INSERT IGNORE 占位再取锁：并发首插不死锁（间隙锁互等是"查不到就插"的固有缺陷） */
+    /** INSERT IGNORE 占位再取锁（仅首插路径）：行已存在时直接 FOR UPDATE——
+     *  无条件 INSERT IGNORE 撞已存在唯一键会持 S 锁到事务结束，双事务各持 S 求 X 必死锁（审查 Important-1） */
     private InvStock lockOrCreate(Long warehouseId, Long skuId) {
-        stockMapper.ensureRow(warehouseId, skuId);
+        if (findRow(warehouseId, skuId) == null) {
+            stockMapper.ensureRow(warehouseId, skuId);
+        }
         InvStock row = stockMapper.selectForUpdate(warehouseId, skuId);
         if (row == null) {
             throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "库存行状态冲突，请重试");
@@ -277,6 +327,8 @@ public class StockServiceImpl implements StockService {
                             .eq(InvSn::getId, snRow.getId())
                             .set(InvSn::getStatus, SnStatus.IN_STOCK)
                             .set(InvSn::getWarehouseId, warehouseId)
+                            // §3b 翻回须同步批次（审查 Important-5）
+                            .set(InvSn::getLotId, line.lotId())
                             // 退货回库清掉出库指向，避免"最近一次出库"误导追溯
                             .set(returnIn, InvSn::getOutDocType, null)
                             .set(returnIn, InvSn::getOutDocId, null)

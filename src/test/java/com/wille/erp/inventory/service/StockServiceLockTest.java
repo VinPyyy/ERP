@@ -139,6 +139,37 @@ class StockServiceLockTest {
         assertThat(s.getLockedQty()).isEqualByComparingTo(bd("5"));
     }
 
+    @Test
+    void lockRejectsNonPositiveQty() {
+        // 审查 Important-8：负数锁定会静默击穿可用量且骗过对账器
+        BaseWarehouse wh = dataFactory.warehouse("WH-LK5");
+        BaseProduct p = dataFactory.product("SKU-LK5", MgmtMode.NONE);
+        inbound(wh.getId(), p.getId(), "10");
+
+        assertThatThrownBy(() -> stockService.lock(new LockCmd(wh.getId(),
+                new LockRef(DocType.SAL_ORDER, 5L, 51L), List.of(new LockLine(p.getId(), bd("-5"))))))
+                .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void releasePartiallyConsumesLock() {
+        // 审查 Important-3：§3e.2 锁定转实扣 = 部分核销，门面缺 release 无法表达
+        BaseWarehouse wh = dataFactory.warehouse("WH-LK6");
+        BaseProduct p = dataFactory.product("SKU-LK6", MgmtMode.NONE);
+        inbound(wh.getId(), p.getId(), "10");
+        LockRef ref = new LockRef(DocType.SAL_ORDER, 6L, 61L);
+        stockService.lock(new LockCmd(wh.getId(), ref, List.of(new LockLine(p.getId(), bd("6")))));
+
+        stockService.release(ref, bd("4"));
+
+        assertThat(stock(wh.getId(), p.getId()).getLockedQty()).isEqualByComparingTo(bd("2"));
+        assertThat(lockRow(ref).getRemainQty()).isEqualByComparingTo(bd("2"));
+        assertThat(lockRow(ref).getLockQty()).isEqualByComparingTo(bd("6"));
+
+        assertThatThrownBy(() -> stockService.release(ref, bd("3")))
+                .isInstanceOf(BizException.class);
+    }
+
     private InvStockLock lockRow(LockRef ref) {
         return lockMapper.selectOne(Wrappers.<InvStockLock>lambdaQuery()
                 .eq(InvStockLock::getLockDocType, ref.lockDocType().name())

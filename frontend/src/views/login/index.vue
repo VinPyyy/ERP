@@ -222,6 +222,7 @@ async function submit() {
 /* ---------- 左侧品牌区 ---------- */
 .brand {
   flex: 0 0 55%;
+  position: relative;
   display: flex;
   align-items: center;
   padding: 48px 56px;
@@ -258,7 +259,7 @@ async function submit() {
 }
 .trust-list {
   list-style: none;
-  margin: 0 0 48px;
+  margin: 0;
   padding: 0;
   display: grid;
   gap: 20px;
@@ -291,6 +292,9 @@ async function submit() {
   color: rgba(255, 255, 255, 0.66);
 }
 .brand-foot {
+  position: absolute;
+  left: 56px;
+  bottom: 28px;
   margin: 0;
   font-size: 12px;
   color: rgba(255, 255, 255, 0.45);

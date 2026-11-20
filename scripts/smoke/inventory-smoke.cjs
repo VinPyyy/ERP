@@ -85,7 +85,9 @@ function check(name, cond, detail) {
 
   // 08 重复期初审核被拒
   const dup = await api('POST', '/inventory/openings', { warehouseId: whId, items: [{ skuId, qty: 3, costPrice: 7 }] })
-  const dupAudit = await api('POST', `/inventory/openings/${dup.data}/audit`)
+  const dupAudit = dup.code === 0
+    ? await api('POST', `/inventory/openings/${dup.data}/audit`)
+    : { code: -1, msg: `建重复单本身失败: ${JSON.stringify(dup).slice(0, 80)}` }
   check('08 重复期初审核拒绝', dupAudit.code !== 0 && /期初/.test(dupAudit.msg || ''), JSON.stringify(dupAudit).slice(0, 160))
 
   // 09 replay-check 零差异
@@ -103,6 +105,35 @@ function check(name, cond, detail) {
   const replay2 = await api('GET', '/inventory/flows/replay-check')
   check('11 作废后归零且对账干净', row2 && row2.qty === 0 && replay2.data.consistent === true,
     `qty=${row2 && row2.qty} consistent=${replay2.data && replay2.data.consistent}`)
+
+  // 12 批次+SN 商品期初三级下钻一致性（审查 I5）
+  const prod2 = await api('POST', '/basedata/products', {
+    skuCode: `SMKLS${RUN}`, name: `冒烟批次商品${RUN}`, unit: '个',
+    mgmtMode: 'LOT_SN', shelfLifeDays: 365, status: 1,
+  })
+  check('12 建批次SN商品', prod2.code === 0, JSON.stringify(prod2).slice(0, 120))
+  const sku2 = prod2.data
+  const open2 = await api('POST', '/inventory/openings', {
+    warehouseId: whId,
+    items: [{ skuId: sku2, qty: 2, costPrice: 30, lotNo: `L${RUN}`, productionDate: '2026-01-01', snList: [`S${RUN}A`, `S${RUN}B`] }],
+  })
+  const audit2 = open2.code === 0 ? await api('POST', `/inventory/openings/${open2.data}/audit`) : open2
+  check('12b 批次SN期初审核', audit2.code === 0, JSON.stringify(audit2).slice(0, 160))
+
+  const lots2 = await api('GET', `/inventory/stocks/lots?warehouseId=${whId}&skuId=${sku2}`)
+  const lotSum = lots2.code === 0
+    ? lots2.data.reduce((s, l) => s + l.qty, 0)
+    : -1
+  const sns2 = await api('GET', `/inventory/sns?skuId=${sku2}&warehouseId=${whId}&status=IN_STOCK&pageSize=200`)
+  const snCount = sns2.code === 0 ? sns2.data.total : -1
+  check('13 三级一致 汇总=批次SUM=SN COUNT=2', lotSum === 2 && snCount === 2,
+    `lotSum=${lotSum} snCount=${snCount}`)
+
+  // 14 批次SN期初作废归零且对账干净
+  const void2 = await api('POST', `/inventory/openings/${open2.data}/void`, { reason: `冒烟批次收尾${RUN}` })
+  const replay3 = await api('GET', '/inventory/flows/replay-check')
+  check('14 批次期初作废后归零对账干净', void2.code === 0 && replay3.data.consistent === true,
+    `void=${void2.code} consistent=${replay3.data && replay3.data.consistent}`)
 
   const failed = results.filter((r) => !r.pass)
   console.log('\n库存冒烟结果：')

@@ -7,8 +7,13 @@
 **引用数据下拉与管理列表分权**：
 
 - 管理页的 list/page 端点保持模块 `*:list` 权限不变（返回全字段、分页、可导出）。
-- 下拉所需的裁剪视图走新端点，**登录即可**（Sa-Token 全局拦截器兜底，无 `@SaCheckPermission`）——下拉数据是组织性引用信息（id+编码+名称），不含联系人/价格/成本等敏感字段。
+- 下拉所需的裁剪视图走新端点，**登录即可**——下拉数据是组织性引用信息（id+编码+名称），不含联系人/价格/成本等敏感字段。
 - 例外：单据源单下拉（订单→入库、入库→退货）属**交易数据**，不放登录级，用权限点 OR 精确放行"能创建下游单"的角色。
+
+**登录防线的双层实现**（2026-11-21 安全修正，见 §4）：
+
+1. 结构层：`SaTokenConfig` 注册 `new SaInterceptor(handle -> StpUtil.checkLogin())`——`/api/**` 一律要求登录态，白名单仅 login/crypto。**注意：无参 `new SaInterceptor()` 只做注解校验、不做全局登录校验**，初版正是误信这一点导致 options 端点匿名可达。
+2. 显式层：4 个档案 options 端点标 `@SaCheckLogin` 自我文档化；两个单据 options 的 `@SaCheckPermission` 本身隐含登录。
 
 ## 2. 端点契约
 
@@ -30,6 +35,8 @@ customers/options 待 M5 销售用到时补。
 - 测试：`SystemControllerTest#roleOptionsLoginOnlyWhileListStaysPermissioned`、`BasedataControllerTest#referenceOptionsEndpointsAreLoginOnly`、`PurchaseOptionsEndpointTest`（2 例）、auth-smoke 步骤 13
 
 ## 4. 验证记录（2026-11-21）
+
+- **安全修正**：初版发布后 curl 匿名复验发现 `/roles/options` 无 token 竟 200 全量返回（拦截器无参构造不做登录校验，文档"全局兜底"前提错误）——已按双层实现修复，回归锁 `SystemControllerTest.optionsEndpointsRejectAnonymousCallers`（6 端点匿名一律 401+10401）
 
 - `mvn test` **227/227**（新增：options 契约 2 例、admin 正向 2 例、受限负向 2 例、auditedOptions 内容 1 例、404 handler 1 例）；`npm run build` 绿
 - auth-smoke **13/13**（步骤 13=受限用户 roles 403 + options 200）；inventory/purchase 回归绿

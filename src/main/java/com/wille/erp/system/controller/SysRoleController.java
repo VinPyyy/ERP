@@ -1,5 +1,6 @@
 package com.wille.erp.system.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.R;
 import com.wille.erp.system.dto.RoleOptionVO;
@@ -29,6 +30,7 @@ public class SysRoleController {
     private final PermissionService permissionService;
 
     /** 下拉引用数据：登录即可（docs/system/reference-options.md），不含备注/审计字段 */
+    @SaCheckLogin
     @GetMapping("/roles/options")
     public R<List<RoleOptionVO>> roleOptions() {
         return R.ok(roleService.list().stream()

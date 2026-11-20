@@ -1,5 +1,6 @@
 package com.wille.erp.basedata.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.ImportResultVO;
 import com.wille.erp.basedata.dto.OptionVOs;
@@ -44,6 +45,7 @@ public class ProductController {
     private final ProductExcelService productExcelService;
 
     /** 下拉引用数据：启用商品裁剪视图（不含价格成本），登录即可（docs/system/reference-options.md） */
+    @SaCheckLogin
     @GetMapping("/options")
     public R<List<OptionVOs.ProductOption>> options() {
         return R.ok(productService.listAllActive());

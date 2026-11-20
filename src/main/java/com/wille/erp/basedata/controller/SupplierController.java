@@ -1,5 +1,6 @@
 package com.wille.erp.basedata.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.ImportResultVO;
 import com.wille.erp.basedata.dto.OptionVOs;
@@ -42,6 +43,7 @@ public class SupplierController {
     private final PartnerExcelService partnerExcelService;
 
     /** 下拉引用数据：启用供应商裁剪视图，登录即可（docs/system/reference-options.md） */
+    @SaCheckLogin
     @GetMapping("/options")
     public R<List<OptionVOs.PartnerOption>> options() {
         return R.ok(supplierService.listAllActive().stream()

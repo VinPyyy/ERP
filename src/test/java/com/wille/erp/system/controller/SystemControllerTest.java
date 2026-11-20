@@ -194,6 +194,19 @@ class SystemControllerTest {
     }
 
     @Test
+    void optionsEndpointsRejectAnonymousCallers() throws Exception {
+        // 88b7ffc 引入的暴露面回归锁：/options 无 token 一律 401（全局 auth 函数 + @SaCheckLogin 双层）
+        for (String path : new String[]{
+                "/api/system/roles/options", "/api/basedata/warehouses/options",
+                "/api/basedata/suppliers/options", "/api/basedata/products/options",
+                "/api/purchase/orders/options", "/api/purchase/inbounds/options"}) {
+            mockMvc.perform(get(path))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value(10401));
+        }
+    }
+
+    @Test
     void roleOptionsLoginOnlyWhileListStaysPermissioned() throws Exception {
         // 只授用户管理模块的角色：进用户页不应被角色列表 403 挡住（引用数据 /options 登录即可）
         dataFactory.roleWithPerms("R_UOPT", "仅用户模块", "system:user:list");

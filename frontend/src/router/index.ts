@@ -35,8 +35,12 @@ const router = createRouter({
         { path: 'basedata/product', name: 'basedata-product', component: () => import('@/views/basedata/product/index.vue'), meta: { title: '商品档案' } },
         { path: 'basedata/customer', name: 'basedata-customer', component: () => import('@/views/basedata/partner/index.vue'), props: { kind: 'customer' }, meta: { title: '客户管理' } },
         { path: 'basedata/supplier', name: 'basedata-supplier', component: () => import('@/views/basedata/partner/index.vue'), props: { kind: 'supplier' }, meta: { title: '供应商管理' } },
-        { path: 'basedata/warehouse', name: 'basedata-warehouse', component: () => import('@/views/basedata/warehouse/index.vue'), meta: { title: '仓库档案' } }
-        // M3: /inventory/*  M4: /purchase/*  M5: /sale/*  M6: 盘点调拨  M7: /print/:docType/:id（Layout 外）
+        { path: 'basedata/warehouse', name: 'basedata-warehouse', component: () => import('@/views/basedata/warehouse/index.vue'), meta: { title: '仓库档案' } },
+        // M3：库存
+        { path: 'inventory/stock', name: 'inventory-stock', component: () => import('@/views/inventory/stock/index.vue'), meta: { title: '库存查询' } },
+        { path: 'inventory/flow', name: 'inventory-flow', component: () => import('@/views/inventory/flow/index.vue'), meta: { title: '库存流水' } },
+        { path: 'inventory/opening', name: 'inventory-opening', component: () => import('@/views/inventory/opening/index.vue'), meta: { title: '期初库存' } }
+        // M4: /purchase/*  M5: /sale/*  M6: 盘点调拨  M7: /print/:docType/:id（Layout 外）
       ]
     },
     {

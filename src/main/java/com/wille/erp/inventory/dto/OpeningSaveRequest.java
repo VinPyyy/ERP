@@ -1,7 +1,6 @@
 package com.wille.erp.inventory.dto;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -14,7 +13,7 @@ public class OpeningSaveRequest {
     @NotNull
     private Long warehouseId;
 
+    /** 草稿允许空行（明细走 Excel 导入）；审核时校验非空（M3b 修复轮 I5） */
     @Valid
-    @NotEmpty(message = "期初行不能为空")
     private List<OpeningItemRequest> items;
 }

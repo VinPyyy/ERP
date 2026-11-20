@@ -59,7 +59,8 @@ public class OpeningService {
     @Transactional(rollbackFor = Exception.class)
     public Long create(OpeningSaveRequest request) {
         requireWarehouseVisible(request.getWarehouseId());
-        validateItems(request.getItems());
+        List<OpeningItemRequest> items = request.getItems() == null ? List.of() : request.getItems();
+        validateItems(items);
         InvOpening doc = new InvOpening();
         doc.setDocNo(docNoService.nextNo(DocType.OPENING));
         doc.setStatus(DocStatus.DRAFT);
@@ -68,7 +69,7 @@ public class OpeningService {
         doc.setWarehouseId(request.getWarehouseId());
         doc.setFinFlag(0);
         openingMapper.insert(doc);
-        replaceItems(doc.getId(), request.getItems());
+        replaceItems(doc.getId(), items);
         return doc.getId();
     }
 
@@ -78,8 +79,9 @@ public class OpeningService {
         requireExists(doc);
         requireWarehouseVisible(doc.getWarehouseId());
         requireDraft(doc);
-        validateItems(request.getItems());
-        replaceItems(id, request.getItems());
+        List<OpeningItemRequest> items = request.getItems() == null ? List.of() : request.getItems();
+        validateItems(items);
+        replaceItems(id, items);
     }
 
     @Transactional(rollbackFor = Exception.class)

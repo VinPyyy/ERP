@@ -49,7 +49,7 @@ public class OpeningService {
 
     private final InvOpeningMapper openingMapper;
     private final InvOpeningItemMapper itemMapper;
-    private final InvLotMapper lotMapper;
+    private final com.wille.erp.inventory.api.LotApi lotApi;
     private final InvFlowMapper flowMapper;
     private final ProductReader productReader;
     private final DocNoService docNoService;
@@ -266,27 +266,12 @@ public class OpeningService {
         }
     }
 
-    /** 审核时物化批次主档：UNIQUE(sku,lot_no) 复用（spec §2.3） */
+    /** 审核时物化批次主档：委托 LotApi（purchase 入库复用同一实现） */
     private Long materializeLot(InvOpeningItem item) {
         if (item.getLotNo() == null || item.getLotNo().isBlank()) {
             return null;
         }
-        InvLot lot = lotMapper.selectOne(Wrappers.<InvLot>lambdaQuery()
-                .eq(InvLot::getSkuId, item.getSkuId()).eq(InvLot::getLotNo, item.getLotNo()));
-        if (lot == null) {
-            lot = new InvLot();
-            lot.setSkuId(item.getSkuId());
-            lot.setLotNo(item.getLotNo());
-            lot.setProductionDate(item.getProductionDate());
-            if (item.getProductionDate() != null) {
-                ProductReader.ProductInfo p = productReader.read(item.getSkuId());
-                if (p != null && p.shelfLifeDays() != null) {
-                    lot.setExpiryDate(item.getProductionDate().plusDays(p.shelfLifeDays()));
-                }
-            }
-            lotMapper.insert(lot);
-        }
-        return lot.getId();
+        return lotApi.materialize(item.getSkuId(), item.getLotNo(), item.getProductionDate());
     }
 
     private InvOpening requireOpening(Long id) {

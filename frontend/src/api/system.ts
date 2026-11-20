@@ -19,7 +19,10 @@ export interface UserVO {
 
 export interface UserSaveRequest {
   username: string
-  password?: string
+  /** create 必填（RSA-OAEP 密文，来自 encryptPassword）；update 忽略 */
+  encryptedPassword?: string
+  nonce?: string
+  ts?: number
   realName?: string
   phone?: string
   status?: number

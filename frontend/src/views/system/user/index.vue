@@ -105,7 +105,8 @@ function doSearch() {
 const roles = ref<RoleVO[]>([])
 const dialogVisible = ref(false)
 const saving = ref(false)
-const form = reactive<UserSaveRequest & { id?: number }>({
+// password 仅 UI 本地态：提交前经 encryptPassword 转成 encryptedPassword/nonce/ts
+const form = reactive<UserSaveRequest & { id?: number; password: string }>({
   username: '', password: '', realName: '', phone: '', status: 1, roleIds: [], warehouseIds: []
 })
 
@@ -131,12 +132,19 @@ function openEdit(row: UserVO) {
 }
 
 async function save() {
+  // 密码只在本地 form 里存在，提交前加密；编辑不涉及密码
+  if (!form.id && form.password.length < 6) {
+    ElMessage.warning('密码至少 6 位')
+    return
+  }
   saving.value = true
   try {
+    const { password, ...base } = form
     if (form.id) {
-      await userApi.update(form.id, form)
+      await userApi.update(form.id, base)
     } else {
-      await userApi.create(form)
+      const cred = await encryptPassword(password)
+      await userApi.create({ ...base, ...cred })
     }
     ElMessage.success('已保存')
     dialogVisible.value = false

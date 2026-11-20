@@ -84,7 +84,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { inventoryApi, type LotStockVO, type SnVO, type StockVO } from '@/api/inventory'
-import { warehouseApi, type WarehouseVO } from '@/api/basedata'
+import { warehouseApi, type WarehouseOption } from '@/api/basedata'
 import { useTable } from '@/composables/useTable'
 import { useAuthStore } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
@@ -92,7 +92,7 @@ import PageHeader from '@/components/PageHeader.vue'
 const auth = useAuthStore()
 const canViewCost = computed(() => auth.canViewCost)
 
-const warehouses = ref<WarehouseVO[]>([])
+const warehouses = ref<WarehouseOption[]>([])
 const warehouseFilter = ref<number | undefined>(undefined)
 const keyword = ref('')
 
@@ -145,7 +145,7 @@ async function openSns(stock: StockRow, lot: LotStockVO | null) {
 }
 
 onMounted(async () => {
-  warehouses.value = await warehouseApi.list()
+  warehouses.value = await warehouseApi.options()
   await load()
 })
 </script>

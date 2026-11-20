@@ -50,6 +50,16 @@ class BasedataControllerTest {
     private ObjectMapper objectMapper;
     @Autowired
     private com.wille.erp.system.service.PasswordCryptoService passwordCryptoService;
+    @Autowired
+    private com.wille.erp.support.DataFactory dataFactory;
+
+    private String loginToken(String username, String password) throws Exception {
+        String body = mockMvc.perform(post("/api/auth/login").contentType(JSON)
+                        .content(objectMapper.writeValueAsString(com.wille.erp.support.LoginTestRequests
+                                .encrypted(passwordCryptoService, username, password))))
+                .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body).path("data").path("token").asText();
+    }
 
     private String adminToken() throws Exception {
         String body = mockMvc.perform(post("/api/auth/login").contentType(JSON)
@@ -177,6 +187,26 @@ class BasedataControllerTest {
         supplier.setName("烟测供应商");
         mockMvc.perform(post("/api/basedata/suppliers").header("Authorization", token)
                         .contentType(JSON).content(objectMapper.writeValueAsString(supplier)))
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    void referenceOptionsEndpointsAreLoginOnly() throws Exception {
+        // 下拉引用数据（仓库/供应商/商品）登录即可，不要求本模块 list 权限
+        dataFactory.roleWithPerms("R_BOPT", "仅用户模块", "system:user:list");
+        dataFactory.user("bopt01", "pwd123", "R_BOPT");
+        String token = loginToken("bopt01", "pwd123");
+
+        mockMvc.perform(get("/api/basedata/warehouses").header("Authorization", token))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/basedata/warehouses/options").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+        mockMvc.perform(get("/api/basedata/suppliers/options").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+        mockMvc.perform(get("/api/basedata/products/options").header("Authorization", token))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
     }
 }

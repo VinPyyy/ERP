@@ -16,6 +16,7 @@ import com.wille.erp.inventory.api.StockCmd.MoveCmd;
 import com.wille.erp.inventory.api.StockCmd.MoveLine;
 import com.wille.erp.inventory.api.StockCmd.ReverseCmd;
 import com.wille.erp.inventory.api.StockService;
+import com.wille.erp.purchase.dto.DocOptionVO;
 import com.wille.erp.purchase.dto.InboundItemRequest;
 import com.wille.erp.purchase.dto.InboundSaveRequest;
 import com.wille.erp.purchase.dto.InboundVO;
@@ -340,6 +341,14 @@ public class InboundService {
             row.setRemark(item.getRemark());
             itemMapper.insert(row);
         }
+    }
+
+    /** 退货源单下拉：已审核入库单裁剪视图（方案 A，权限见 InboundController#options） */
+    public List<DocOptionVO> auditedOptions() {
+        return inboundMapper.selectList(Wrappers.<PurInbound>lambdaQuery()
+                        .eq(PurInbound::getStatus, DocStatus.AUDITED).orderByDesc(PurInbound::getId))
+                .stream().map(o -> new DocOptionVO(o.getId(), o.getDocNo(), o.getSupplierId(), o.getWarehouseId()))
+                .toList();
     }
 
     public PageResult<PurInbound> page(int pageNum, int pageSize, String keyword) {

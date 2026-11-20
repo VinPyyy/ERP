@@ -55,4 +55,6 @@ public final class ErrorCode {
     // 6xxxx 系统
     public static final int DOC_NO_FAIL = 60001;
     public static final int PARAM_NOT_FOUND = 60002;
+    /** 路由不存在（HTTP 404，方案 A 补充：不把 404 记成服务器故障） */
+    public static final int API_NOT_FOUND = 60003;
 }

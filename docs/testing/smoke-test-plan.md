@@ -43,6 +43,7 @@
 | 10 | 自建用户新密码登录 | code 0 | — |
 | 11 | 逻辑删除后用户名复用 | 10001 含"曾被使用"（回归 500 缺陷） | `UserServiceTest.createReusingDeletedUsernameThrowsFriendlyError` |
 | 12 | 限流：5 败后正确密码仍拒 | 10007 含剩余分钟 | `AuthServiceTest.loginLockedAfterFiveWrongPasswords` |
+| 13 | 受限用户（仅 user:list 角色）：`/system/roles` 403、`/system/roles/options` 200 | 10403 / 0 | `SystemControllerTest.roleOptionsLoginOnlyWhileListStaysPermissioned`（方案 A 回归） |
 
 **副作用与隔离**
 - 创建 `smoke_<runid>`、`smoke_reuse_<runid>`、`smoke_lock_<runid>` 三个用户（runid 为 base36 时间戳，天然不与其他运行冲突）；07–10 的重置只打在 `smoke_*` 上，**绝不触碰 admin**，套件中途崩溃不会污染种子账号。
@@ -99,6 +100,7 @@
 | 2026-11-21 | inventory-smoke | 11/11 通过（连续两次，净库存变化 0） | 首跑暴露 JSON 枚举按 ordinal 解析坑（mgmtMode:1→LOT），改枚举名后全绿 |
 | 2026-11-21 | purchase-smoke | 9/9 通过（首轮，×2） | M4 任务 6 首轮 |
 | 2026-11-21 | purchase-smoke（审查修复批 10 步） | 10/10 通过（×2；auth 12/12、inventory 回归同步通过） | 首跑步骤 06 假通过暴露环境坑：dev 库 ratio 曾被手工调成 0.1，溢收 1 件合法——改用再入 100 件保证任何正常 ratio 下必拒；同时新步骤实测了 I6 草稿作废 |
+| 2026-11-21 | auth-smoke（扩至 13 步） | 13/13 通过（inventory 15/15、purchase 10/10 同步回归绿） | 步骤 13=引用数据分权回归（受限用户 roles 403 + options 200），配套浏览器实测见 docs/system/reference-options.md §4 |
 
 ## 4. 落地规则（新增冒烟场景时）
 

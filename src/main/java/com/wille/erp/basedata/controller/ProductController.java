@@ -2,6 +2,7 @@ package com.wille.erp.basedata.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.ImportResultVO;
+import com.wille.erp.basedata.dto.OptionVOs;
 import com.wille.erp.basedata.dto.ProductQuery;
 import com.wille.erp.basedata.dto.ProductSaveRequest;
 import com.wille.erp.basedata.entity.BaseProduct;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -39,6 +42,12 @@ public class ProductController {
 
     private final ProductService productService;
     private final ProductExcelService productExcelService;
+
+    /** 下拉引用数据：启用商品裁剪视图（不含价格成本），登录即可（docs/system/reference-options.md） */
+    @GetMapping("/options")
+    public R<List<OptionVOs.ProductOption>> options() {
+        return R.ok(productService.listAllActive());
+    }
 
     @GetMapping
     @SaCheckPermission("basedata:product:list")

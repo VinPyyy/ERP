@@ -8,6 +8,7 @@ import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.enums.DocStatus;
 import com.wille.erp.common.enums.DocType;
 import com.wille.erp.common.exception.BizException;
+import com.wille.erp.purchase.dto.DocOptionVO;
 import com.wille.erp.purchase.dto.InboundItemRequest;
 import com.wille.erp.purchase.dto.InboundSaveRequest;
 import com.wille.erp.purchase.dto.OrderItemRequest;
@@ -205,6 +206,15 @@ public class OrderService {
             row.setRemark(item.getRemark());
             orderItemMapper.insert(row);
         }
+    }
+
+    /** 入库源单下拉：已审核订单裁剪视图（方案 A，权限见 OrderController#options） */
+    public List<DocOptionVO> auditedOptions() {
+        return orderMapper.selectList(Wrappers.<PurOrder>lambdaQuery()
+                        .eq(PurOrder::getStatus, DocStatus.AUDITED).orderByDesc(PurOrder::getId))
+                .stream().map(o -> new DocOptionVO(
+                        o.getId(), o.getDocNo(), o.getSupplierId(), o.getWarehouseId()))
+                .toList();
     }
 
     PurOrder requireDoc(Long id) {

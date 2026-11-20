@@ -17,6 +17,7 @@
 | `BizException` | **200** | 业务码（10001/10002/40001…） | 业务结果是正常应答，不是传输失败；前端拦截器按 code≠0 toast |
 | `MethodArgumentNotValidException` | 200 | 10001 + 首条字段错误 | 参数校验属业务交互反馈 |
 | `MethodArgumentTypeMismatchException` | **400** | 10001 | 路径/参数类型错是客户端错误，不记服务器故障 |
+| `NoHandlerFound/NoResourceFoundException` | **404** | 60003 | 路由不存在是客户端错，此前落兜底被记成 500 |
 | `NotLoginException` | 401 | 10401 | 前端清会话跳登录 |
 | `NotPermission/NotRoleException` | 403 | 10403 | toast 无权限 |
 | 其余 `Exception` 兜底 | **500** | 500 | msg 固定"服务器内部错误，请联系管理员"；堆栈只进日志 |

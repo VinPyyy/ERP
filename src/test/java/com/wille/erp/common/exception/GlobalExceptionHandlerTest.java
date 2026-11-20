@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -76,6 +78,18 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.msg").value("服务器内部错误，请联系管理员"))
                 .andExpect(jsonPath("$.msg").value(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("secret internal detail"))));
+    }
+
+    @Test
+    void unknownRouteMapsToHttp404NotServerFault() {
+        // standalone MockMvc 对未映射路径不抛异常，直调 handler 验证 Boot3 的 NoResourceFoundException 归类
+        var response = new GlobalExceptionHandler().handleNotFound(
+                new org.springframework.web.servlet.resource.NoResourceFoundException(
+                        org.springframework.http.HttpMethod.GET, "/api/nope"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(ErrorCode.API_NOT_FOUND);
     }
 
     @Test

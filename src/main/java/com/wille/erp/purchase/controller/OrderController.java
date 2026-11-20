@@ -1,14 +1,18 @@
 package com.wille.erp.purchase.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaMode;
 import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.api.R;
+import com.wille.erp.purchase.dto.DocOptionVO;
 import com.wille.erp.purchase.dto.OrderSaveRequest;
 import com.wille.erp.purchase.dto.OrderVO;
 import com.wille.erp.purchase.entity.PurOrder;
 import com.wille.erp.purchase.service.OrderService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+
+import java.util.List;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -71,6 +75,13 @@ public class OrderController {
     @SaCheckPermission("purchase:order:create-inbound")
     public R<Long> createInbound(@PathVariable Long id) {
         return R.ok(orderService.createInbound(id));
+    }
+
+    /** 入库源单下拉：已审核订单裁剪视图；仅放行能创建下游单的角色（方案 A） */
+    @GetMapping("/options")
+    @SaCheckPermission(value = {"purchase:inbound:create", "purchase:return:create"}, mode = SaMode.OR)
+    public R<List<DocOptionVO>> options() {
+        return R.ok(orderService.auditedOptions());
     }
 
     @GetMapping

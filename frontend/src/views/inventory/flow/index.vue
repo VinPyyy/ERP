@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { inventoryApi, type FlowVO } from '@/api/inventory'
-import { warehouseApi, type WarehouseVO } from '@/api/basedata'
+import { warehouseApi, type WarehouseOption } from '@/api/basedata'
 import { useTable } from '@/composables/useTable'
 import { useAuthStore } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
@@ -66,7 +66,7 @@ const canViewCost = computed(() => auth.canViewCost)
 const bizTypes = ['OPENING', 'PUR_IN', 'PUR_RETURN_OUT', 'SALE_OUT', 'SAL_RETURN_IN',
   'TRANSFER_OUT', 'TRANSFER_IN', 'COUNT_GAIN_IN', 'COUNT_LOSS_OUT']
 
-const warehouses = ref<WarehouseVO[]>([])
+const warehouses = ref<WarehouseOption[]>([])
 const warehouseFilter = ref<number | undefined>(undefined)
 const bizType = ref<string | undefined>(undefined)
 const docNo = ref('')
@@ -84,7 +84,7 @@ const { loading, rows, total, query, load, search } = useTable<FlowVO>((q) =>
 )
 
 onMounted(async () => {
-  warehouses.value = await warehouseApi.list()
+  warehouses.value = await warehouseApi.options()
 })
 
 function doSearch() {

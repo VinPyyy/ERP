@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * 供应商管理：与客户结构对称（GLOSSARY"客户 / 供应商"）。
  * TODO M4：删除前经事件校验采购单据引用。
@@ -24,6 +26,12 @@ public class SupplierService {
     private final BaseSupplierMapper supplierMapper;
 
     @Transactional(rollbackFor = Exception.class)
+    /** 下拉引用数据：启用供应商 id+编码+名称（docs/system/reference-options.md） */
+    public List<BaseSupplier> listAllActive() {
+        return supplierMapper.selectList(Wrappers.<BaseSupplier>lambdaQuery()
+                .eq(BaseSupplier::getStatus, 1).orderByAsc(BaseSupplier::getId));
+    }
+
     public Long create(PartnerSaveRequest request) {
         requireCodeUnique(request.getCode(), null);
         BaseSupplier supplier = new BaseSupplier();

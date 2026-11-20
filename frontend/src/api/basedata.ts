@@ -57,6 +57,7 @@ export { mgmtOptions }
 export const productApi = {
   page: (params: Record<string, unknown>) =>
     http.get('/basedata/products', { params }) as any as Promise<{ total: number; records: ProductVO[] }>,
+  options: () => http.get('/basedata/products/options') as any as Promise<ProductOption[]>,
   create: (data: ProductSaveRequest) => http.post('/basedata/products', data) as any as Promise<number>,
   update: (id: number, data: ProductSaveRequest) => http.put(`/basedata/products/${id}`, data),
   remove: (id: number) => http.delete(`/basedata/products/${id}`),
@@ -101,8 +102,27 @@ export interface PartnerSaveRequest {
   remark?: string
 }
 
+/** 下拉引用数据（/options，登录即可，docs/system/reference-options.md） */
+export interface PartnerOption {
+  id: number
+  code: string
+  name: string
+}
+export interface WarehouseOption {
+  id: number
+  code: string
+  name: string
+}
+export interface ProductOption {
+  id: number
+  skuCode: string
+  name: string
+  unit: string
+}
+
 type PartnerApi = {
   page: (params: Record<string, unknown>) => Promise<{ total: number; records: PartnerVO[] }>
+  options: () => Promise<PartnerOption[]>
   create: (data: PartnerSaveRequest) => Promise<number>
   update: (id: number, data: PartnerSaveRequest) => Promise<void>
   remove: (id: number) => Promise<void>
@@ -113,6 +133,7 @@ type PartnerApi = {
 function buildPartnerApi(base: string): PartnerApi {
   return {
     page: (params) => http.get(base, { params }) as any,
+    options: () => http.get(`${base}/options`) as any,
     create: (data) => http.post(base, data) as any,
     update: (id, data) => http.put(`${base}/${id}`, data),
     remove: (id) => http.delete(`${base}/${id}`),
@@ -141,6 +162,7 @@ export interface WarehouseVO {
 
 export const warehouseApi = {
   list: () => http.get('/basedata/warehouses') as any as Promise<WarehouseVO[]>,
+  options: () => http.get('/basedata/warehouses/options') as any as Promise<WarehouseOption[]>,
   create: (data: Partial<WarehouseVO>) => http.post('/basedata/warehouses', data) as any as Promise<number>,
   update: (id: number, data: Partial<WarehouseVO>) => http.put(`/basedata/warehouses/${id}`, data),
   remove: (id: number) => http.delete(`/basedata/warehouses/${id}`)

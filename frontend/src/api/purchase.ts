@@ -39,6 +39,13 @@ export interface DocVO {
   doc: DocHead
   items: DocItem[]
 }
+/** 源单下拉项（/options，仅已审核单据，方案 A） */
+export interface DocOption {
+  id: number
+  docNo: string
+  supplierId?: number
+  warehouseId?: number
+}
 export type InquiryVO = DocVO
 export type OrderVO = DocVO
 export type InboundVO = DocVO
@@ -68,7 +75,8 @@ export const orderApi = {
   audit: (id: number) => http.post(`/purchase/orders/${id}/audit`),
   void: (id: number, reason: string) => http.post(`/purchase/orders/${id}/void`, { reason }),
   closeItem: (id: number, itemId: number) => http.post(`/purchase/orders/${id}/items/${itemId}/close`),
-  createInbound: (id: number) => http.post(`/purchase/orders/${id}/create-inbound`) as any as Promise<number>
+  createInbound: (id: number) => http.post(`/purchase/orders/${id}/create-inbound`) as any as Promise<number>,
+  options: () => http.get('/purchase/orders/options') as any as Promise<DocOption[]>
 }
 
 export const inboundApi = {
@@ -77,7 +85,8 @@ export const inboundApi = {
   create: (body: unknown) => http.post('/purchase/inbounds', body) as any as Promise<number>,
   audit: (id: number) => http.post(`/purchase/inbounds/${id}/audit`),
   void: (id: number, reason: string) => http.post(`/purchase/inbounds/${id}/void`, { reason }),
-  createReturn: (id: number) => http.post(`/purchase/inbounds/${id}/create-return`) as any as Promise<number>
+  createReturn: (id: number) => http.post(`/purchase/inbounds/${id}/create-return`) as any as Promise<number>,
+  options: () => http.get('/purchase/inbounds/options') as any as Promise<DocOption[]>
 }
 
 export const returnApi = {

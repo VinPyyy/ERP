@@ -20,6 +20,7 @@ import com.wille.erp.inventory.mapper.InvCountMapper;
 import com.wille.erp.inventory.mapper.InvLotMapper;
 import com.wille.erp.inventory.mapper.InvSnMapper;
 import com.wille.erp.inventory.mapper.InvStockMapper;
+import com.wille.erp.purchase.dto.DocOptionVO;
 import com.wille.erp.purchase.dto.InboundItemRequest;
 import com.wille.erp.purchase.dto.InboundSaveRequest;
 import com.wille.erp.purchase.dto.OrderItemRequest;
@@ -459,6 +460,31 @@ class OrderInboundServiceTest {
         StpUtil.logout();
         StpUtil.login(u0.getId());
         assertThat(inboundService.page(1, 20, null).getRecords()).isEmpty();
+    }
+
+    @Test
+    void auditedOptionsOnlyExposeAuditedDocs() {
+        // 源单下拉内容：订单/入库单的 options 只含 AUDITED，草稿/作废不出现
+        BaseWarehouse wh = dataFactory.warehouse("OI-W18");
+        BaseSupplier sup = dataFactory.supplier("OI-S18");
+        BaseProduct p = dataFactory.product("OI-P18", MgmtMode.NONE);
+        Long orderDraft = order(wh, sup, p, "5", "5");
+        Long orderAudited = order(wh, sup, p, "5", "5");
+        orderService.audit(orderAudited);
+
+        var orderOpts = orderService.auditedOptions();
+        assertThat(orderOpts).extracting(DocOptionVO::id)
+                .contains(orderAudited).doesNotContain(orderDraft);
+
+        Long inDraft = inboundService.create(draftInbound(null, wh, sup, p, "1", "1", null));
+        Long inAudited = inboundService.create(draftInbound(null, wh, sup, p, "2", "2", null));
+        inboundService.audit(inAudited);
+
+        var inOpts = inboundService.auditedOptions();
+        assertThat(inOpts).extracting(DocOptionVO::id)
+                .contains(inAudited).doesNotContain(inDraft);
+        assertThat(inOpts.get(0).docNo()).isNotBlank();
+        asserter.assertConsistent();
     }
 
     private InboundSaveRequest draftInbound(Long orderId, BaseWarehouse wh,

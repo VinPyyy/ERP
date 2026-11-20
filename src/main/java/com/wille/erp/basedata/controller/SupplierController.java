@@ -2,7 +2,10 @@ package com.wille.erp.basedata.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.ImportResultVO;
+import com.wille.erp.basedata.dto.OptionVOs;
 import com.wille.erp.basedata.dto.PartnerQuery;
+
+import java.util.List;
 import com.wille.erp.basedata.dto.PartnerSaveRequest;
 import com.wille.erp.basedata.entity.BaseSupplier;
 import com.wille.erp.basedata.excel.PartnerExcelService;
@@ -37,6 +40,14 @@ public class SupplierController {
 
     private final SupplierService supplierService;
     private final PartnerExcelService partnerExcelService;
+
+    /** 下拉引用数据：启用供应商裁剪视图，登录即可（docs/system/reference-options.md） */
+    @GetMapping("/options")
+    public R<List<OptionVOs.PartnerOption>> options() {
+        return R.ok(supplierService.listAllActive().stream()
+                .map(s -> new OptionVOs.PartnerOption(s.getId(), s.getCode(), s.getName()))
+                .toList());
+    }
 
     @GetMapping
     @SaCheckPermission("basedata:supplier:list")

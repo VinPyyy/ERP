@@ -141,11 +141,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { openingApi, type OpeningItemVO, type OpeningVO } from '@/api/inventory'
 
 const templateUrl = openingApi.templateUrl
-import { warehouseApi, type WarehouseVO } from '@/api/basedata'
+import { warehouseApi, type WarehouseOption } from '@/api/basedata'
 import { useTable } from '@/composables/useTable'
 import PageHeader from '@/components/PageHeader.vue'
 
-const warehouses = ref<WarehouseVO[]>([])
+const warehouses = ref<WarehouseOption[]>([])
 const warehouseName = (id: number) => warehouses.value.find((w) => w.id === id)?.name ?? String(id)
 
 const { loading, rows, total, query, load } = useTable<OpeningVO>((q) => openingApi.page(q))
@@ -231,7 +231,7 @@ async function voidDoc(row: OpeningVO) {
 }
 
 onMounted(async () => {
-  warehouses.value = await warehouseApi.list()
+  warehouses.value = await warehouseApi.options()
   await load()
 })
 </script>

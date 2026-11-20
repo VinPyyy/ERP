@@ -13,6 +13,9 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理（spec §5.1，2026-11-21 状态码语义修正）：
@@ -56,12 +59,19 @@ public class GlobalExceptionHandler {
                 .body(R.fail(ErrorCode.NO_PERMISSION, "无操作权限"));
     }
 
-    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<R<Void>> handleTypeMismatch(
-            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e) {
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<R<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
         log.warn("参数类型不匹配: {}", e.getName());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(R.fail(ErrorCode.PARAM_INVALID, "请求参数格式不正确"));
+    }
+
+    /** 路由不存在 → HTTP 404（此前落兜底 500，把客户端错记成服务器故障） */
+    @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+    public ResponseEntity<R<Void>> handleNotFound(Exception e) {
+        log.warn("路由不存在: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(R.fail(ErrorCode.API_NOT_FOUND, "请求的接口不存在"));
     }
 
     @ExceptionHandler(Exception.class)

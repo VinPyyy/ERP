@@ -3,6 +3,7 @@ package com.wille.erp.purchase.controller;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.api.R;
+import com.wille.erp.purchase.dto.DocOptionVO;
 import com.wille.erp.purchase.dto.InboundSaveRequest;
 import com.wille.erp.purchase.dto.InboundVO;
 import com.wille.erp.purchase.entity.PurInbound;
@@ -10,6 +11,8 @@ import com.wille.erp.purchase.service.ReturnService;
 import com.wille.erp.purchase.service.InboundService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+
+import java.util.List;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -60,6 +63,13 @@ public class InboundController {
     public R<Void> voidInbound(@PathVariable Long id, @Valid @RequestBody VoidRequest request) {
         inboundService.voidInbound(id, request.getReason());
         return R.ok();
+    }
+
+    /** 退货源单下拉：已审核入库单裁剪视图；仅放行能创建退货的角色（方案 A） */
+    @GetMapping("/options")
+    @SaCheckPermission("purchase:return:create")
+    public R<List<DocOptionVO>> options() {
+        return R.ok(inboundService.auditedOptions());
     }
 
     @GetMapping

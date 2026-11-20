@@ -2,6 +2,7 @@ package com.wille.erp.basedata.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.wille.erp.basedata.dto.OptionVOs;
 import com.wille.erp.basedata.dto.ProductQuery;
 import com.wille.erp.basedata.dto.ProductSaveRequest;
 import com.wille.erp.basedata.entity.BaseProduct;
@@ -29,6 +30,14 @@ public class ProductService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(rollbackFor = Exception.class)
+    /** 下拉引用数据：启用商品裁剪视图，不含价格成本（docs/system/reference-options.md） */
+    public List<OptionVOs.ProductOption> listAllActive() {
+        return productMapper.selectList(Wrappers.<BaseProduct>lambdaQuery()
+                        .eq(BaseProduct::getStatus, 1).orderByAsc(BaseProduct::getId))
+                .stream().map(p -> new OptionVOs.ProductOption(p.getId(), p.getSkuCode(), p.getName(), p.getUnit()))
+                .toList();
+    }
+
     public Long create(ProductSaveRequest request) {
         validate(request);
         requireCodeUnique(request.getSkuCode(), null);

@@ -116,7 +116,7 @@
 <script setup lang="ts">
 import { reactive, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { userApi, roleApi, type UserVO, type UserSaveRequest, type RoleVO } from '@/api/system'
+import { userApi, roleApi, type UserVO, type UserSaveRequest } from '@/api/system'
 import { encryptPassword } from '@/api/passwordCrypto'
 import { useTable } from '@/composables/useTable'
 import PageHeader from '@/components/PageHeader.vue'
@@ -134,7 +134,7 @@ function doSearch() {
   search()
 }
 
-const roles = ref<RoleVO[]>([])
+const roles = ref<{ id: number; roleCode: string; roleName: string }[]>([])
 const dialogVisible = ref(false)
 const saving = ref(false)
 // password 仅 UI 本地态：提交前经 encryptPassword 转成 encryptedPassword/nonce/ts
@@ -147,7 +147,7 @@ const resetPassword = ref('')
 let resettingId = 0
 
 onMounted(async () => {
-  roles.value = await roleApi.list()
+  roles.value = await roleApi.options()
 })
 
 function openCreate() {

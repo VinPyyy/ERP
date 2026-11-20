@@ -1,6 +1,7 @@
 package com.wille.erp.basedata.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.wille.erp.basedata.dto.OptionVOs;
 import com.wille.erp.basedata.dto.WarehouseSaveRequest;
 import com.wille.erp.basedata.entity.BaseWarehouse;
 import com.wille.erp.basedata.service.WarehouseService;
@@ -27,6 +28,15 @@ import java.util.List;
 public class WarehouseController {
 
     private final WarehouseService warehouseService;
+
+    /** 下拉引用数据：启用仓库裁剪视图，登录即可（docs/system/reference-options.md） */
+    @GetMapping("/options")
+    public R<List<OptionVOs.WarehouseOption>> options() {
+        return R.ok(warehouseService.listAll().stream()
+                .filter(w -> w.getStatus() == null || w.getStatus() == 1)
+                .map(w -> new OptionVOs.WarehouseOption(w.getId(), w.getCode(), w.getName()))
+                .toList());
+    }
 
     @GetMapping
     @SaCheckPermission("basedata:warehouse:list")

@@ -101,20 +101,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { inboundApi, returnApi, type DocHead, type DocVO } from '@/api/purchase'
-import { productApi, supplierApi, warehouseApi, type ProductVO, type WarehouseVO, type PartnerVO } from '@/api/basedata'
+import { inboundApi, returnApi, type DocHead, type DocOption, type DocVO } from '@/api/purchase'
+import { productApi, supplierApi, warehouseApi, type ProductOption, type WarehouseOption, type PartnerOption } from '@/api/basedata'
 import { useTable } from '@/composables/useTable'
 import PageHeader from '@/components/PageHeader.vue'
 
 const keyword = ref('')
-const suppliers = ref<PartnerVO[]>([])
-const warehouses = ref<WarehouseVO[]>([])
-const products = ref<ProductVO[]>([])
-const allInbounds = ref<DocHead[]>([])
+const suppliers = ref<PartnerOption[]>([])
+const warehouses = ref<WarehouseOption[]>([])
+const products = ref<ProductOption[]>([])
+const allInbounds = ref<DocOption[]>([])
 // 审查 M6：仅已审核入库单可作为退货源
-const auditedInbounds = computed(() => allInbounds.value.filter((o) => o.status === 'AUDITED'))
+const auditedInbounds = allInbounds
 const { loading, rows, total, query, load, search } = useTable<DocHead>((q) => returnApi.page(q) as any)
 
 const nameOf = (list: { id: number; name: string }[], id?: number) => list.find((x) => x.id === id)?.name ?? String(id ?? '-')
@@ -211,10 +211,10 @@ async function voidDoc(row: { id: number; docNo: string }) {
 }
 
 onMounted(async () => {
-  suppliers.value = (await supplierApi.page({ pageSize: 200 })).records
-  warehouses.value = await warehouseApi.list()
-  products.value = (await productApi.page({ pageSize: 200 })).records
-  allInbounds.value = (await inboundApi.page({ pageSize: 200 })).records
+  suppliers.value = await supplierApi.options()
+  warehouses.value = await warehouseApi.options()
+  products.value = await productApi.options()
+  allInbounds.value = await inboundApi.options()
   await load()
 })
 </script>

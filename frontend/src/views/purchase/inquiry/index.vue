@@ -108,14 +108,14 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { inquiryApi, type DocHead, type DocVO } from '@/api/purchase'
-import { productApi, supplierApi, warehouseApi, type ProductVO, type WarehouseVO, type PartnerVO } from '@/api/basedata'
+import { productApi, supplierApi, warehouseApi, type ProductOption, type WarehouseOption, type PartnerOption } from '@/api/basedata'
 import { useTable } from '@/composables/useTable'
 import PageHeader from '@/components/PageHeader.vue'
 
 const keyword = ref('')
-const suppliers = ref<PartnerVO[]>([])
-const warehouses = ref<WarehouseVO[]>([])
-const products = ref<ProductVO[]>([])
+const suppliers = ref<PartnerOption[]>([])
+const warehouses = ref<WarehouseOption[]>([])
+const products = ref<ProductOption[]>([])
 const { loading, rows, total, query, load, search } = useTable<DocHead>((q) => inquiryApi.page(q) as any)
 
 const nameOf = (list: { id: number; name: string }[], id?: number) => list.find((x) => x.id === id)?.name ?? String(id ?? '-')
@@ -200,9 +200,9 @@ async function voidDoc(row: { id: number; docNo: string }) {
 }
 
 onMounted(async () => {
-  suppliers.value = (await supplierApi.page({ pageSize: 200 })).records
-  warehouses.value = await warehouseApi.list()
-  products.value = (await productApi.page({ pageSize: 200 })).records
+  suppliers.value = await supplierApi.options()
+  warehouses.value = await warehouseApi.options()
+  products.value = await productApi.options()
   await load()
 })
 </script>

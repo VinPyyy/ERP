@@ -51,6 +51,8 @@ export interface RoleVO {
 
 export const roleApi = {
   list: () => http.get('/system/roles') as any as Promise<RoleVO[]>,
+  /** 下拉引用数据（登录即可，docs/system/reference-options.md） */
+  options: () => http.get('/system/roles/options') as any as Promise<{ id: number; roleCode: string; roleName: string }[]>,
   create: (data: { roleCode: string; roleName: string; remark?: string }) => http.post('/system/roles', data) as any as Promise<number>,
   update: (id: number, data: { roleCode: string; roleName: string; remark?: string }) => http.put(`/system/roles/${id}`, data),
   remove: (id: number) => http.delete(`/system/roles/${id}`),

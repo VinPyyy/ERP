@@ -43,6 +43,8 @@ class SystemControllerTest {
     private com.wille.erp.system.api.ConfigService configService;
     @Autowired
     private com.wille.erp.system.service.PasswordCryptoService passwordCryptoService;
+    @Autowired
+    private com.wille.erp.support.DataFactory dataFactory;
 
     private String loginToken(String username, String password) throws Exception {
         String body = mockMvc.perform(post("/api/auth/login").contentType(JSON)
@@ -189,5 +191,21 @@ class SystemControllerTest {
         mockMvc.perform(get("/api/system/doc-no-rules").header("Authorization", token))
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.length()").value(11));
+    }
+
+    @Test
+    void roleOptionsLoginOnlyWhileListStaysPermissioned() throws Exception {
+        // 只授用户管理模块的角色：进用户页不应被角色列表 403 挡住（引用数据 /options 登录即可）
+        dataFactory.roleWithPerms("R_UOPT", "仅用户模块", "system:user:list");
+        dataFactory.user("uopt01", "pwd123", "R_UOPT");
+        String token = loginToken("uopt01", "pwd123");
+
+        mockMvc.perform(get("/api/system/roles").header("Authorization", token))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/system/roles/options").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data[?(@.roleName=='仓管')]").exists());
     }
 }

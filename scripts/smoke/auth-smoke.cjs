@@ -159,6 +159,23 @@ function expectCode(json, code, msgPart) {
     return expectCode(await loginEnc(lockName, 'pwd12345'), 10007, '分钟后重试')
   })
 
+  const roName = `smoke_ro_${RUN_ID}`
+  await test('13 受限用户：角色列表 403 但 options 引用数据可用', async () => {
+    const role = await call('POST', '/system/roles',
+      { roleCode: `SMOKE_RO_${RUN_ID}`, roleName: `冒烟仅用户模块${RUN_ID}` }, adminToken)
+    expectCode(role, 0)
+    const created = await call('POST', '/system/users', {
+      username: roName, realName: '受限冒烟', status: 1, roleIds: [role.data], warehouseIds: [0],
+      ...credOf(await issue(), 'pwd12345'),
+    }, adminToken)
+    expectCode(created, 0)
+    const logged = await loginEnc(roName, 'pwd12345')
+    expectCode(logged, 0)
+    const t = logged.data.token
+    expectCode(await call('GET', '/system/roles', undefined, t), 10403)
+    return expectCode(await call('GET', '/system/roles/options', undefined, t), 0)
+  })
+
   const failed = results.filter((r) => !r.pass)
   console.log('\n冒烟结果：')
   for (const r of results) {

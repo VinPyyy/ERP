@@ -126,13 +126,16 @@ html {
   box-shadow: var(--erp-glass-shadow);
   border-radius: var(--erp-radius);
 }
-/* 弹窗玻璃（与浮层同白度） */
+/* 弹窗：纯白实底（半透明+模糊在深色遮罩上会发灰），圆角保留 */
 .el-dialog {
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(22px) saturate(1.4);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: #fff;
+  border: 1px solid var(--erp-line);
   border-radius: 18px;
+}
+/* 弹窗内输入框/选择框统一收窄：inline width:100% 被 max-width 封顶，一处生效所有弹窗 */
+.el-dialog .el-input,
+.el-dialog .el-select {
+  max-width: 340px;
 }
 
 /* 表格：透明底落在玻璃卡上，表头浅染 */

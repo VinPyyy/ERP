@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.wille.erp.basedata.api.ProductReader;
 import com.wille.erp.common.api.ErrorCode;
 import com.wille.erp.common.enums.BizType;
+import com.wille.erp.common.enums.DocType;
 import com.wille.erp.common.enums.SnStatus;
 import com.wille.erp.common.exception.BizException;
 import com.wille.erp.inventory.api.StockCmd;
@@ -150,9 +151,70 @@ public class StockServiceImpl implements StockService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void reverse(StockCmd.ReverseCmd cmd) {
-        // 裁决（最终审查 Important-4）：入库类冲正随 M3b 期初作废一并实现并测试
-        throw new UnsupportedOperationException("M3b Task 1");
+        // 作废冲正（ADR-0003）：金额一律取原流水快照原路回冲，绝不反算、绝不用当前均价冲历史
+        List<InvFlow> originals = flowMapper.selectList(Wrappers.<InvFlow>lambdaQuery()
+                .eq(InvFlow::getBizDocType, cmd.docType())
+                .eq(InvFlow::getBizDocId, cmd.docId())
+                .isNull(InvFlow::getReverseFlowId)
+                .orderByAsc(InvFlow::getId));
+        for (InvFlow f : originals) {
+            InvStock row = lockOrCreate(f.getWarehouseId(), f.getSkuId());
+            StockState before = state(row);
+            BigDecimal revQty = f.getQty().negate();
+            BigDecimal revAmount = f.getCostAmount().negate();
+            // 入库类冲正前置校验（spec §3c 第 2 条）：冲减后可用量不得为负
+            if (f.getQty().signum() > 0
+                    && before.qty().subtract(row.getLockedQty()).compareTo(f.getQty()) < 0) {
+                throw new BizException(ErrorCode.VOID_STOCK_CONSUMED,
+                        "库存已被后续单据消耗，请先作废下游单据");
+            }
+            BigDecimal qty = before.qty().add(revQty);
+            BigDecimal amount = before.costAmount().add(revAmount).setScale(2, java.math.RoundingMode.HALF_UP);
+            StockState after = new StockState(qty, amount,
+                    AveragePriceCalculator.derivePrice(amount, qty));
+            writeBack(row, after);
+            if (f.getLotId() != null) {
+                applyLotDelta(f.getWarehouseId(), f.getSkuId(), f.getLotId(), revQty);
+            }
+            applySnReverse(f, cmd);
+            insertFlow(f.getWarehouseId(), f.getSkuId(), f.getLotId(), f.getPrice(), f.getCostPrice(),
+                    revQty, revAmount, after, f.getBizType(), f.getBizDocType(), f.getBizDocId(),
+                    f.getBizDocNo(), f.getBizDocItemId(), f.getId());
+        }
+    }
+
+    private void applyLotDelta(Long warehouseId, Long skuId, Long lotId, BigDecimal delta) {
+        lotStockMapper.ensureRow(warehouseId, skuId, lotId);
+        InvLotStock lotRow = findLotStock(warehouseId, skuId, lotId);
+        if (lotRow == null) {
+            throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "批次行状态冲突，请重试");
+        }
+        lotRow.setQty(lotRow.getQty().add(delta));
+        lotStockMapper.updateById(lotRow);
+    }
+
+    /**
+     * SN 冲正（spec §4.2 步骤5）：入库类删除本单新建的 SN——物理删除，
+     * 软删行会占住 UNIQUE(sku,sn_code) 导致同 SN 永远无法再入库（用户名同款坑，裁决记录账本）；
+     * 出库类把 out_doc 指向本单的 SN 翻回 IN_STOCK（M4/M5 用例覆盖）。
+     */
+    private void applySnReverse(InvFlow f, StockCmd.ReverseCmd cmd) {
+        if (f.getQty().signum() > 0) {
+            snMapper.hardDeleteByInDoc(f.getSkuId(), cmd.docType().name(), cmd.docId());
+        } else {
+            snMapper.update(null, Wrappers.<InvSn>lambdaUpdate()
+                    .eq(InvSn::getSkuId, f.getSkuId())
+                    .eq(InvSn::getOutDocType, cmd.docType().name())
+                    .eq(InvSn::getOutDocId, cmd.docId())
+                    .set(InvSn::getStatus, SnStatus.IN_STOCK)
+                    .set(InvSn::getWarehouseId, f.getWarehouseId())
+                    .set(InvSn::getOutDocType, null)
+                    .set(InvSn::getOutDocId, null)
+                    .set(InvSn::getOutDocNo, null)
+                    .set(InvSn::getOutTime, null));
+        }
     }
 
     @Override
@@ -367,22 +429,32 @@ public class StockServiceImpl implements StockService {
     private void writeFlow(Long warehouseId, StockCmd.MoveLine line, StockCmd.BizRef ref, boolean inbound,
                            StockState after, BigDecimal signedQty, BigDecimal signedCostAmount,
                            BigDecimal flowCostPrice) {
+        insertFlow(warehouseId, line.skuId(), line.lotId(), line.price(), flowCostPrice,
+                signedQty, signedCostAmount, after, ref.bizType(), ref.docType(), ref.docId(),
+                ref.docNo(), line.bizDocItemId(), null);
+    }
+
+    private void insertFlow(Long warehouseId, Long skuId, Long lotId, BigDecimal price, BigDecimal costPrice,
+                            BigDecimal signedQty, BigDecimal signedCostAmount, StockState after,
+                            BizType bizType, DocType docType, Long docId, String docNo,
+                            Long bizDocItemId, Long reverseFlowId) {
         InvFlow flow = new InvFlow();
         flow.setWarehouseId(warehouseId);
-        flow.setSkuId(line.skuId());
-        flow.setLotId(line.lotId());
+        flow.setSkuId(skuId);
+        flow.setLotId(lotId);
         flow.setQty(signedQty);
-        flow.setPrice(line.price());
-        flow.setCostPrice(flowCostPrice);
+        flow.setPrice(price);
+        flow.setCostPrice(costPrice);
         flow.setCostAmount(signedCostAmount);
         flow.setBalanceQty(after.qty());
         flow.setBalanceCostAmount(after.costAmount());
         flow.setBalanceCostPrice(after.costPrice());
-        flow.setBizType(ref.bizType());
-        flow.setBizDocType(ref.docType());
-        flow.setBizDocId(ref.docId());
-        flow.setBizDocNo(ref.docNo());
-        flow.setBizDocItemId(line.bizDocItemId());
+        flow.setBizType(bizType);
+        flow.setBizDocType(docType);
+        flow.setBizDocId(docId);
+        flow.setBizDocNo(docNo);
+        flow.setBizDocItemId(bizDocItemId);
+        flow.setReverseFlowId(reverseFlowId);
         flowMapper.insert(flow);
     }
 

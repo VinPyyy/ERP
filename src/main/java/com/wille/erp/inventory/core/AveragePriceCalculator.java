@@ -39,7 +39,8 @@ public final class AveragePriceCalculator {
         return new OutResult(new StockState(qty, amount, derivePrice(amount, qty)), carry);
     }
 
-    private static BigDecimal derivePrice(BigDecimal amount, BigDecimal qty) {
+    /** 派生均价：金额权威、6 位 HALF_UP；qty 归零则价归零（冲正/重放共用同一口径） */
+    public static BigDecimal derivePrice(BigDecimal amount, BigDecimal qty) {
         return qty.signum() == 0
                 ? BigDecimal.ZERO
                 : amount.divide(qty, PRICE_SCALE, RoundingMode.HALF_UP);

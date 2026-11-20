@@ -3,19 +3,19 @@
     <PageHeader title="编号" accent="规则" subtitle="格式：{前缀}-{日期段}-{流水}，如 XSDD-20261119-0001" />
 
     <el-card shadow="never">
-    <el-alert
-      type="info"
-      :closable="false"
-      title="作废不回收号，跳号属正常现象"
-      class="hint"
-    />
+    <div class="hint">
+      <el-icon class="hint-ic"><WarningFilled /></el-icon>
+      作废不回收号，跳号属正常现象
+    </div>
     <el-table v-loading="loading" :data="rules" class="erp-table">
-      <el-table-column prop="docType" label="单据类型" width="150" />
-      <el-table-column prop="prefix" label="前缀" width="100" />
-      <el-table-column prop="datePattern" label="日期段" width="120" />
-      <el-table-column prop="seqLength" label="流水位数" width="100" />
-      <el-table-column prop="seqScope" label="重置周期" width="110" />
-      <el-table-column prop="currentSeq" label="当前流水" width="100" />
+      <el-table-column prop="docType" label="单据类型" min-width="180" />
+      <el-table-column prop="prefix" label="前缀" min-width="110" />
+      <el-table-column prop="datePattern" label="日期段" min-width="130" />
+      <el-table-column prop="seqLength" label="流水位数" min-width="100" />
+      <el-table-column label="重置周期" min-width="120">
+        <template #default="{ row }">{{ scopeLabels[row.seqScope as string] ?? row.seqScope }}</template>
+      </el-table-column>
+      <el-table-column prop="currentSeq" label="当前流水" min-width="110" />
       <el-table-column label="操作" width="110" fixed="right">
         <template #default="{ row }">
           <el-button v-perm="'system:docno:edit'" link type="primary" @click="openEdit(row)">
@@ -42,9 +42,7 @@
       <el-form-item label="流水位数"><el-input-number v-model="form.seqLength" :min="3" :max="8" /></el-form-item>
       <el-form-item label="重置周期">
         <el-select v-model="form.seqScope" style="width: 100%">
-          <el-option label="按天" value="DAY" />
-          <el-option label="按月" value="MONTH" />
-          <el-option label="不重置" value="NONE" />
+          <el-option v-for="(label, val) in scopeLabels" :key="val" :label="label" :value="val" />
         </el-select>
       </el-form-item>
     </el-form>
@@ -69,6 +67,8 @@ import PageHeader from '@/components/PageHeader.vue'
 
 const loading = ref(false)
 const rules = ref<DocNoRuleVO[]>([])
+// seqScope 枚举 → 中文显示（与编辑弹窗选项一致）
+const scopeLabels: Record<string, string> = { DAY: '按日', MONTH: '按月', NONE: '不重置' }
 const dialogVisible = ref(false)
 const editing = ref<DocNoRuleVO | null>(null)
 const form = reactive({ prefix: '', datePattern: 'yyyyMMdd', seqLength: 4, seqScope: 'DAY' })
@@ -104,5 +104,17 @@ async function save() {
 </script>
 
 <style scoped>
-.hint { margin-bottom: 12px; }
+/* 提示条：无底色（与卡片白一致）+ 前置警示图标 */
+.hint {
+  display: flex;
+  align-items: center;
+  gap: var(--erp-space-1);
+  margin-bottom: var(--erp-space-2);
+  font-size: 13px;
+  color: var(--erp-muted);
+}
+.hint-ic {
+  color: var(--erp-amber);
+  font-size: 15px;
+}
 </style>

@@ -133,6 +133,10 @@ public class UserService {
         if (count > 0) {
             throw new BizException(ErrorCode.PARAM_INVALID, "用户名已存在: " + username);
         }
+        // 已删行仍占 DB 唯一索引：提前拦截，否则 insert 撞 Duplicate entry 变 500
+        if (userMapper.countDeletedByUsername(username) > 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "该用户名曾被使用: " + username);
+        }
     }
 
     private void applyBasicFields(SysUser user, UserSaveRequest request) {

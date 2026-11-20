@@ -114,6 +114,17 @@ class UserServiceTest {
     }
 
     @Test
+    void createReusingDeletedUsernameThrowsFriendlyError() {
+        // 逻辑删行仍占 uk_sys_user_username：应给业务提示而非撞索引 500
+        Long id = userService.create(req("gone01", "pwd123"));
+        userService.delete(id);
+
+        assertThatThrownBy(() -> userService.create(req("gone01", "pwd456")))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("曾被使用");
+    }
+
+    @Test
     void deleteAdminUserForbidden() {
         assertThatThrownBy(() -> userService.delete(1L))
                 .isInstanceOf(BizException.class)

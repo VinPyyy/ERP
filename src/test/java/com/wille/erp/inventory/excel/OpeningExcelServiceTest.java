@@ -86,12 +86,14 @@ class OpeningExcelServiceTest {
         RequestContextHolder.resetRequestAttributes();
     }
 
-    private static OpeningImportModel row(String sku, String qty, String price, String lotNo, String sns) {
+    private static OpeningImportModel row(String sku, String qty, String price, String lotNo,
+                                          String productionDate, String sns) {
         OpeningImportModel m = new OpeningImportModel();
         m.setSkuCode(sku);
         m.setQty(qty);
         m.setCostPrice(price);
         m.setLotNo(lotNo);
+        m.setProductionDate(productionDate);
         m.setSnCodes(sns);
         return m;
     }
@@ -122,8 +124,8 @@ class OpeningExcelServiceTest {
         Long docId = draftDoc(wh.getId(), plain);
 
         byte[] xlsx = toXlsx(List.of(
-                row("OX-P1", "10", "5", null, null),
-                row("OX-L1", "2", "30", "L9", "SN-A,SN-B")));
+                row("OX-P1", "10", "5", null, null, null),
+                row("OX-L1", "2", "30", "L9", "2026-01-01", "SN-A,SN-B")));
 
         ImportResultVO result = excelService.importToDraft(docId, new ByteArrayInputStream(xlsx));
 
@@ -147,19 +149,35 @@ class OpeningExcelServiceTest {
         Long docId = draftDoc(wh.getId(), ok);
 
         byte[] xlsx = toXlsx(List.of(
-                row("OX-OK", "10", "5", null, null),      // 1 合法
-                row("NO-SUCH", "1", "1", null, null),     // 2 SKU 不存在
-                row("OX-LOT", "1", "1", null, null),      // 3 管批次缺批号
-                row("OX-SN", "3", "1", null, "A,B"),      // 4 SN 数≠qty
-                row("OX-OK", "1", "-2", null, null),      // 5 均价<0
-                row("OX-OK", "1", "1", null, null)));     // 6 同单重复 SKU
+                row("OX-OK", "10", "5", null, null, null),          // 1 合法
+                row("NO-SUCH", "1", "1", null, null, null),         // 2 SKU 不存在
+                row("OX-LOT", "1", "1", null, null, null),          // 3 管批次缺批号
+                row("OX-SN", "3", "1", null, null, "A,B"),          // 4 SN 数≠qty
+                row("OX-OK", "1", "-2", null, null, null),          // 5 均价<0（且 SKU 重复）
+                row("OX-LOT", "1", "1", "LA", "2026-03-01", null),  // 6 与行3同 SKU → 重复
+                row("OX-LOT", "1", "1", "LB", "2026-03-02", null))); // 7 同 SKU 不同批号也重复（I6：按 SKU 判重，spec §2.3）
 
         ImportResultVO result = excelService.importToDraft(docId, new ByteArrayInputStream(xlsx));
 
         assertThat(result.hasErrors()).isTrue();
         assertThat(result.getErrors()).extracting(ImportResultVO.RowError::getRow)
-                .containsExactlyInAnyOrder(2, 3, 4, 5, 6);
+                .containsExactlyInAnyOrder(2, 3, 4, 5, 6, 7);
         // 一行不写：占位行仍在
+        assertThat(itemMapper.selectCount(Wrappers.<InvOpeningItem>lambdaQuery()
+                .eq(InvOpeningItem::getDocId, docId))).isEqualTo(1);
+    }
+
+    @Test
+    void importEmptyFileRejected() {
+        // I5：空文件不得静默清空已有草稿行
+        BaseWarehouse wh = dataFactory.warehouse("OX-W5");
+        BaseProduct p = dataFactory.product("OX-P5", MgmtMode.NONE);
+        Long docId = draftDoc(wh.getId(), p);
+
+        byte[] xlsx = toXlsx(List.of());
+        assertThatThrownBy(() -> excelService.importToDraft(docId, new ByteArrayInputStream(xlsx)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("无数据行");
         assertThat(itemMapper.selectCount(Wrappers.<InvOpeningItem>lambdaQuery()
                 .eq(InvOpeningItem::getDocId, docId))).isEqualTo(1);
     }
@@ -178,7 +196,7 @@ class OpeningExcelServiceTest {
         Long docId = openingService.create(request);
         openingService.audit(docId);
 
-        byte[] xlsx = toXlsx(List.of(row("OX-P3", "2", "2", null, null)));
+        byte[] xlsx = toXlsx(List.of(row("OX-P3", "2", "2", null, null, null)));
         assertThatThrownBy(() -> excelService.importToDraft(docId, new ByteArrayInputStream(xlsx)))
                 .isInstanceOf(BizException.class);
     }
@@ -191,8 +209,8 @@ class OpeningExcelServiceTest {
         Long docId = draftDoc(wh.getId(), p4);
 
         byte[] xlsx = toXlsx(List.of(
-                row("OX-P4", "8", "7", null, null),
-                row("OX-S4", "1", "99", null, "ONLY-1")));
+                row("OX-P4", "8", "7", null, null, null),
+                row("OX-S4", "1", "99", null, null, "ONLY-1")));
         excelService.importToDraft(docId, new ByteArrayInputStream(xlsx));
         openingService.audit(docId);
 

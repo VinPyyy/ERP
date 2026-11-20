@@ -160,6 +160,11 @@ public class StockServiceImpl implements StockService {
                 .isNull(InvFlow::getReverseFlowId)
                 .orderByAsc(InvFlow::getId));
         for (InvFlow f : originals) {
+            // 防重复冲正（spec §3f reverse_flow_id 用途，审查 I1）：原流水已有冲正行指向它即拒绝
+            if (flowMapper.selectCount(Wrappers.<InvFlow>lambdaQuery()
+                    .eq(InvFlow::getReverseFlowId, f.getId())) > 0) {
+                throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "该单据流水已被冲正");
+            }
             InvStock row = lockOrCreate(f.getWarehouseId(), f.getSkuId());
             StockState before = state(row);
             BigDecimal revQty = f.getQty().negate();
@@ -202,7 +207,19 @@ public class StockServiceImpl implements StockService {
      */
     private void applySnReverse(InvFlow f, StockCmd.ReverseCmd cmd) {
         if (f.getQty().signum() > 0) {
+            // 新建的（从未出库）物理删除；曾出库被本单翻回的恢复 OUT 态（审查 C1）
             snMapper.hardDeleteByInDoc(f.getSkuId(), cmd.docType().name(), cmd.docId());
+            snMapper.update(null, Wrappers.<InvSn>lambdaUpdate()
+                    .eq(InvSn::getSkuId, f.getSkuId())
+                    .eq(InvSn::getInDocType, cmd.docType().name())
+                    .eq(InvSn::getInDocId, cmd.docId())
+                    .isNotNull(InvSn::getOutDocId)
+                    .set(InvSn::getStatus, SnStatus.OUT)
+                    .set(InvSn::getWarehouseId, null)
+                    .set(InvSn::getInDocType, null)
+                    .set(InvSn::getInDocId, null)
+                    .set(InvSn::getInDocNo, null)
+                    .set(InvSn::getInTime, null));
         } else {
             snMapper.update(null, Wrappers.<InvSn>lambdaUpdate()
                     .eq(InvSn::getSkuId, f.getSkuId())
@@ -384,18 +401,12 @@ public class StockServiceImpl implements StockService {
                 } else if (snRow.getStatus() == SnStatus.IN_STOCK) {
                     throw new BizException(ErrorCode.SN_DUPLICATED_IN_STOCK, "SN 重复在库: " + sn);
                 } else {
-                    boolean returnIn = ref.bizType() == BizType.SAL_RETURN_IN;
+                    // 翻回保留 out_doc_*：既是"最近一次出库"（§3b），也是冲正时区分新建/翻回的判据（审查 C1 裁决）
                     snMapper.update(null, Wrappers.<InvSn>lambdaUpdate()
                             .eq(InvSn::getId, snRow.getId())
                             .set(InvSn::getStatus, SnStatus.IN_STOCK)
                             .set(InvSn::getWarehouseId, warehouseId)
-                            // §3b 翻回须同步批次（审查 Important-5）
                             .set(InvSn::getLotId, line.lotId())
-                            // 退货回库清掉出库指向，避免"最近一次出库"误导追溯
-                            .set(returnIn, InvSn::getOutDocType, null)
-                            .set(returnIn, InvSn::getOutDocId, null)
-                            .set(returnIn, InvSn::getOutDocNo, null)
-                            .set(returnIn, InvSn::getOutTime, null)
                             .set(InvSn::getInDocType, ref.docType().name())
                             .set(InvSn::getInDocId, ref.docId())
                             .set(InvSn::getInDocNo, ref.docNo())

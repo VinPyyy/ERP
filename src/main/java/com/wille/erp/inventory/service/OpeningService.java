@@ -74,7 +74,9 @@ public class OpeningService {
 
     @Transactional(rollbackFor = Exception.class)
     public void update(Long id, OpeningSaveRequest request) {
-        InvOpening doc = requireOpening(id);
+        InvOpening doc = openingMapper.selectForUpdate(id);
+        requireExists(doc);
+        requireWarehouseVisible(doc.getWarehouseId());
         requireDraft(doc);
         validateItems(request.getItems());
         replaceItems(id, request.getItems());
@@ -83,6 +85,12 @@ public class OpeningService {
     @Transactional(rollbackFor = Exception.class)
     public void audit(Long id) {
         InvOpening doc = requireOpening(id);
+        requireWarehouseVisible(doc.getWarehouseId());
+        List<InvOpeningItem> items = itemsOf(id);
+        if (items.isEmpty()) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "期初单无明细行，不能审核");
+        }
+        requireNoDuplicateSkus(doc, items.stream().map(InvOpeningItem::getSkuId).collect(Collectors.toSet()));
         // 条件状态更新防双击（spec §4.1 步骤2）
         int updated = openingMapper.update(null, Wrappers.<InvOpening>lambdaUpdate()
                 .eq(InvOpening::getId, id).eq(InvOpening::getStatus, DocStatus.DRAFT)
@@ -92,8 +100,6 @@ public class OpeningService {
         if (updated == 0) {
             throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "单据状态已变化，请刷新后重试");
         }
-        List<InvOpeningItem> items = itemsOf(id);
-        requireNoDuplicateSkus(doc, items.stream().map(InvOpeningItem::getSkuId).collect(Collectors.toSet()));
 
         List<MoveLine> lines = items.stream().map(item -> new MoveLine(
                 item.getSkuId(), item.getQty(), item.getCostPrice(),
@@ -108,6 +114,7 @@ public class OpeningService {
             throw new BizException(ErrorCode.PARAM_INVALID, "作废原因必填");
         }
         InvOpening doc = requireOpening(id);
+        requireWarehouseVisible(doc.getWarehouseId());
         List<InvOpeningItem> items = itemsOf(id);
         requireNoSubsequentFlows(doc, items);
 
@@ -131,6 +138,13 @@ public class OpeningService {
 
     public PageResult<OpeningVO> page(int pageNum, int pageSize) {
         Set<Long> scope = currentUser.warehouseScope();
+        if (scope != null && scope.isEmpty()) {
+            // 零仓库用户：契约要求查空而非放行；MP 空集合 in() 会拼出非法 SQL（审查 I4）
+            PageResult<OpeningVO> empty = new PageResult<>();
+            empty.setTotal(0);
+            empty.setRecords(List.of());
+            return empty;
+        }
         Page<InvOpening> page = openingMapper.selectPage(new Page<>(pageNum, pageSize),
                 Wrappers.<InvOpening>lambdaQuery()
                         .in(scope != null, InvOpening::getWarehouseId, scope == null ? Set.of() : scope)
@@ -160,6 +174,10 @@ public class OpeningService {
             if (p.lotManaged() && (item.getLotNo() == null || item.getLotNo().isBlank())) {
                 throw new BizException(ErrorCode.PARAM_INVALID, "管批次商品期初必须填批号");
             }
+            // spec §2.3 管批次必填生产日期（expiry_date 是三期临期预警的查询列，审查 I7）
+            if (p.lotManaged() && item.getProductionDate() == null) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "管批次商品期初必须填生产日期");
+            }
             if (p.snManaged()) {
                 if (item.getSnList() == null || item.getSnList().size() != item.getQty().intValueExact()) {
                     throw new BizException(ErrorCode.PARAM_INVALID, "管SN商品期初SN数量必须与数量一致");
@@ -178,7 +196,9 @@ public class OpeningService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void importItems(Long docId, List<OpeningItemRequest> items) {
-        InvOpening doc = requireOpening(docId);
+        InvOpening doc = openingMapper.selectForUpdate(docId);
+        requireExists(doc);
+        requireWarehouseVisible(doc.getWarehouseId());
         requireDraft(doc);
         validateItems(items);
         requireNoDuplicateSkus(doc, items.stream().map(OpeningItemRequest::getSkuId).collect(Collectors.toSet()));
@@ -187,6 +207,9 @@ public class OpeningService {
 
     /** 同仓库×SKU 仅一张非作废期初行（spec §2.3 应用层约束） */
     private void requireNoDuplicateSkus(InvOpening doc, Set<Long> skus) {
+        if (skus.isEmpty()) {
+            return; // MP 空集合 in() 拼 IN () 语法错（审查 I4）
+        }
         List<Long> otherDocs = openingMapper.selectList(Wrappers.<InvOpening>lambdaQuery()
                         .eq(InvOpening::getWarehouseId, doc.getWarehouseId())
                         .ne(InvOpening::getStatus, DocStatus.VOIDED)
@@ -203,14 +226,13 @@ public class OpeningService {
         }
     }
 
-    /** 审核后该 wh×SKU 已有非本单流水 → 禁作废（spec §4.2 步骤2） */
+    /** 审核后该 wh×SKU 存在未配对冲正的外部流水 → 禁作废（spec §4.2 步骤2 + 审查 I8 净零裁决） */
     private void requireNoSubsequentFlows(InvOpening doc, List<InvOpeningItem> items) {
         Set<Long> skus = items.stream().map(InvOpeningItem::getSkuId).collect(Collectors.toSet());
-        Long count = flowMapper.selectCount(Wrappers.<InvFlow>lambdaQuery()
-                .eq(InvFlow::getWarehouseId, doc.getWarehouseId())
-                .in(InvFlow::getSkuId, skus)
-                .and(w -> w.ne(InvFlow::getBizType, BizType.OPENING)
-                        .or().ne(InvFlow::getBizDocId, doc.getId())));
+        if (skus.isEmpty()) {
+            return;
+        }
+        long count = flowMapper.countUnreversedForeignFlows(doc.getWarehouseId(), skus, doc.getId());
         if (count > 0) {
             throw new BizException(ErrorCode.VOID_STOCK_CONSUMED,
                     "库存已被后续单据消耗，请先作废下游单据");
@@ -266,7 +288,10 @@ public class OpeningService {
     }
 
     private InvOpening requireOpening(Long id) {
-        InvOpening doc = openingMapper.selectById(id);
+        return requireExists(openingMapper.selectById(id));
+    }
+
+    private InvOpening requireExists(InvOpening doc) {
         if (doc == null) {
             throw new BizException(ErrorCode.PARAM_INVALID, "期初单不存在");
         }

@@ -260,4 +260,133 @@ class OpeningServiceTest {
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("原因");
     }
+
+    // ===== 最终审查修复轮回归（C1/I1/I3/I4/I5/I7/I8/I9） =====
+
+    @Test
+    void snReturnReversalRestoresOutNotDelete() {
+        // C1：翻回的 SN（曾出库）不得被物理删除，冲正应恢复 OUT 态
+        BaseWarehouse wh = dataFactory.warehouse("OP-C1");
+        BaseProduct p = dataFactory.product("OP-CP", MgmtMode.SN);
+        stockService.inbound(new MoveCmd(wh.getId(),
+                new BizRef(BizType.PUR_IN, DocType.PUR_INBOUND, 801L, "C1-IN"),
+                List.of(new MoveLine(p.getId(), bd("1"), bd("9"), null, List.of("C1SN"), 1L))));
+        stockService.outbound(new MoveCmd(wh.getId(),
+                new BizRef(BizType.SALE_OUT, DocType.SAL_OUTBOUND, 802L, "C1-OUT"),
+                List.of(new MoveLine(p.getId(), bd("1"), null, null, List.of("C1SN"), 1L))));
+        stockService.inbound(new MoveCmd(wh.getId(),
+                new BizRef(BizType.SAL_RETURN_IN, DocType.SAL_RETURN, 803L, "C1-RTN"),
+                List.of(new MoveLine(p.getId(), bd("1"), bd("9"), null, List.of("C1SN"), 1L))));
+
+        stockService.reverse(new com.wille.erp.inventory.api.StockCmd.ReverseCmd(DocType.SAL_RETURN, 803L));
+
+        InvSn sn = snMapper.selectOne(Wrappers.<InvSn>lambdaQuery()
+                .eq(InvSn::getSkuId, p.getId()).eq(InvSn::getSnCode, "C1SN"));
+        assertThat(sn).as("翻回 SN 冲正后必须仍存在").isNotNull();
+        assertThat(sn.getStatus()).isEqualTo(SnStatus.OUT);
+        assertThat(sn.getWarehouseId()).isNull();
+        asserter.assertConsistent();
+    }
+
+    @Test
+    void reverseTwiceRejectedOnFacade() {
+        // I1：reverse_flow_id 已占用 → 拒绝二次冲正
+        BaseWarehouse wh = dataFactory.warehouse("OP-I1");
+        BaseProduct p = dataFactory.product("OP-I1P", MgmtMode.NONE);
+        Long id = openingService.create(req(wh.getId(), item(p.getId(), "10", "5")));
+        openingService.audit(id);
+
+        stockService.reverse(new com.wille.erp.inventory.api.StockCmd.ReverseCmd(DocType.OPENING, id));
+        assertThatThrownBy(() ->
+                stockService.reverse(new com.wille.erp.inventory.api.StockCmd.ReverseCmd(DocType.OPENING, id)))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(ErrorCode.CONCURRENT_CONFLICT);
+    }
+
+    @Test
+    void auditForbiddenForInvisibleWarehouse() {
+        // I3：数据权限——绑仓 A 的用户不得审核仓 B 的期初单
+        BaseWarehouse whA = dataFactory.warehouse("OP-I3A");
+        BaseWarehouse whB = dataFactory.warehouse("OP-I3B");
+        BaseProduct p = dataFactory.product("OP-I3P", MgmtMode.NONE);
+        Long docId = openingService.create(req(whB.getId(), item(p.getId(), "10", "5")));
+
+        var user = dataFactory.user("op-i3u", "pwd123", "SALES");
+        dataFactory.bindWarehouses(user.getId(), whA.getId());
+        StpUtil.logout();
+        StpUtil.login(user.getId());
+
+        assertThatThrownBy(() -> openingService.audit(docId))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(ErrorCode.NO_PERMISSION);
+        assertThat(whA.getId()).isNotNull();
+    }
+
+    @Test
+    void pageEmptyForUserWithoutWarehouses() {
+        // I4(a)：零仓库用户 page 不得 SQL 崩溃，应返回空页
+        var user = dataFactory.user("op-i4u", "pwd123", "SALES");
+        StpUtil.logout();
+        StpUtil.login(user.getId());
+
+        var result = openingService.page(1, 20);
+        assertThat(result.getTotal()).isZero();
+    }
+
+    @Test
+    void voidAllowedAfterDownstreamReversal() {
+        // I8：净零流水对（原+已冲正）不得永久阻断期初作废
+        BaseWarehouse wh = dataFactory.warehouse("OP-I8");
+        BaseProduct p = dataFactory.product("OP-I8P", MgmtMode.NONE);
+        Long openingId = openingService.create(req(wh.getId(), item(p.getId(), "10", "5")));
+        openingService.audit(openingId);
+
+        stockService.inbound(new MoveCmd(wh.getId(),
+                new BizRef(BizType.PUR_IN, DocType.PUR_INBOUND, 901L, "I8-IN"),
+                List.of(new MoveLine(p.getId(), bd("5"), bd("6"), null, null, 1L))));
+        assertThatThrownBy(() -> openingService.voidOpening(openingId, "先试"))
+                .isInstanceOf(BizException.class);
+
+        stockService.reverse(new com.wille.erp.inventory.api.StockCmd.ReverseCmd(DocType.PUR_INBOUND, 901L));
+        openingService.voidOpening(openingId, "下游已作废");
+        assertThat(openingService.get(openingId).getStatus()).isEqualTo(50);
+        asserter.assertConsistent();
+    }
+
+    @Test
+    void voidLotManagedOpeningReversesLotStock() {
+        // I9：管批次期初的批次行回冲必须有覆盖
+        BaseWarehouse wh = dataFactory.warehouse("OP-I9");
+        BaseProduct p = dataFactory.product("OP-I9P", MgmtMode.LOT);
+        OpeningItemRequest it = item(p.getId(), "10", "4");
+        it.setLotNo("I9L");
+        it.setProductionDate(java.time.LocalDate.of(2026, 2, 2));
+        Long id = openingService.create(req(wh.getId(), it));
+        openingService.audit(id);
+
+        openingService.voidOpening(id, "批次测试作废");
+
+        assertThat(stock(wh.getId(), p.getId()).getQty()).isEqualByComparingTo(BigDecimal.ZERO);
+        InvLot lot = lotMapper.selectOne(Wrappers.<InvLot>lambdaQuery()
+                .eq(InvLot::getSkuId, p.getId()).eq(InvLot::getLotNo, "I9L"));
+        assertThat(lotStockMapper.selectOne(Wrappers.<InvLotStock>lambdaQuery()
+                .eq(InvLotStock::getLotId, lot.getId())).getQty()).isEqualByComparingTo(BigDecimal.ZERO);
+        asserter.assertConsistent();
+    }
+
+    @Test
+    void lotManagedOpeningRequiresProductionDate() {
+        // I7：spec §2.3 管批次必填生产日期（两层）
+        BaseWarehouse wh = dataFactory.warehouse("OP-I7");
+        BaseProduct p = dataFactory.product("OP-I7P", MgmtMode.LOT);
+        OpeningItemRequest it = item(p.getId(), "10", "4");
+        it.setLotNo("I7L");
+        // 无生产日期
+
+        assertThatThrownBy(() -> openingService.create(req(wh.getId(), it)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("生产日期");
+    }
 }

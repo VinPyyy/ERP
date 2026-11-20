@@ -35,6 +35,11 @@ public class OpeningExcelService {
     public ImportResultVO importToDraft(Long docId, InputStream in) {
         List<OpeningImportModel> rows = EasyExcel.read(in)
                 .head(OpeningImportModel.class).sheet().doReadSync();
+        if (rows.isEmpty()) {
+            // REPLACE 语义下空文件会清空既有草稿行，必须显式拒绝（审查 I5）
+            throw new com.wille.erp.common.exception.BizException(
+                    com.wille.erp.common.api.ErrorCode.PARAM_INVALID, "导入文件无数据行");
+        }
 
         List<ImportResultVO.RowError> errors = new ArrayList<>();
         List<OpeningItemRequest> items = new ArrayList<>();
@@ -77,10 +82,9 @@ public class OpeningExcelService {
         }
         BigDecimal price = parseDecimal(row.getCostPrice());
         String lotNo = row.getLotNo() == null || row.getLotNo().isBlank() ? null : row.getLotNo().trim();
-        // 重复键先注册再报错：坏行也占用 SKU×批号，后续行才能被正确判重
-        String key = product.skuId() + "|" + (lotNo == null ? "" : lotNo);
-        if (!seenKeys.add(key)) {
-            return "同单内 SKU×批号重复";
+        // 判重键 = skuId（spec §2.3 同 wh×SKU 仅一张非作废期初行；审查 I6 裁决两层同口径）
+        if (!seenKeys.add(String.valueOf(product.skuId()))) {
+            return "同单内 SKU 重复";
         }
         if (product.lotManaged() && lotNo == null) {
             return "管批次商品必须填批号";
@@ -102,6 +106,9 @@ public class OpeningExcelService {
             } catch (DateTimeParseException e) {
                 return "生产日期格式应为 yyyy-MM-dd";
             }
+        }
+        if (product.lotManaged() && productionDate == null) {
+            return "管批次商品必须填生产日期";
         }
 
         OpeningItemRequest item = new OpeningItemRequest();

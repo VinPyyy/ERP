@@ -1,20 +1,25 @@
 package com.wille.erp.support;
 
+import com.wille.erp.inventory.dto.ReplayReportVO;
+import com.wille.erp.inventory.service.StockReconcileService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
- * 对账器断言工具（M3 实现，spec §3c/§6 测试基建）：
- * 重放 inv_flow 比对四层不变量——
- * 1. 管批次 SKU：SUM(inv_lot_stock.qty) = inv_stock.qty
- * 2. 管 SN SKU：COUNT(inv_sn IN_STOCK @仓) = inv_stock.qty
- * 3. locked_qty = SUM(inv_stock_lock.remain_qty)
- * 4. 每行流水余额快照 = 上一行快照 + 本行变动；cost_amount ≈ qty × cost_price
- * 每个库存相关测试收尾必跑。
+ * 对账器断言工具（spec §6 测试基建）：委托 StockReconcileService 做四层不变量
+ * （批次 SUM / SN 计数 / 锁定汇总 / 流水重放链+终态），diffs 必须为空。
+ * 库存相关测试收尾必跑。
  */
-public final class StockInvariantAsserter {
+@Component
+@RequiredArgsConstructor
+public class StockInvariantAsserter {
 
-    private StockInvariantAsserter() {
-    }
+    private final StockReconcileService reconcileService;
 
-    public static void assertInvariants() {
-        throw new UnsupportedOperationException("M3 实现：流水重放对账断言");
+    public void assertConsistent() {
+        ReplayReportVO report = reconcileService.check();
+        assertThat(report.diffs()).as("库存四层不变量/重放差异").isEmpty();
     }
 }

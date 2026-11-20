@@ -81,6 +81,17 @@ class ProductServiceTest {
     }
 
     @Test
+    void createReusingDeletedSkuCodeThrowsFriendlyError() {
+        // username-lifecycle 通则：已删行仍占唯一索引，同码重建须友好拒绝而非撞索引 500
+        Long id = productService.create(req("P004X", MgmtMode.NONE));
+        productService.delete(id);
+
+        assertThatThrownBy(() -> productService.create(req("P004X", MgmtMode.NONE)))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("曾被使用");
+    }
+
+    @Test
     void updateKeepingOwnSkuCodeAllowed() {
         Long id = productService.create(req("P005", MgmtMode.NONE));
         ProductSaveRequest request = req("P005", MgmtMode.NONE);

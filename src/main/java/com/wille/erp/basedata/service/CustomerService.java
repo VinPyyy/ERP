@@ -73,6 +73,10 @@ public class CustomerService {
         if (count > 0) {
             throw new BizException(ErrorCode.PARAM_INVALID, "客户编码已存在: " + code);
         }
+        // 已删行仍占唯一索引：提前拦截，否则 insert 撞 Duplicate entry 变 500（username-lifecycle 通则）
+        if (customerMapper.countDeletedByCode(code) > 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "该客户编码曾被使用: " + code);
+        }
     }
 
     private void apply(BaseCustomer customer, PartnerSaveRequest request) {

@@ -95,5 +95,9 @@ public class RoleService {
         if (count > 0) {
             throw new BizException(ErrorCode.PARAM_INVALID, "角色编码已存在: " + roleCode);
         }
+        // 已删行仍占唯一索引：提前拦截，否则 insert 撞 Duplicate entry 变 500（username-lifecycle 通则）
+        if (roleMapper.countDeletedByCode(roleCode) > 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "该角色编码曾被使用: " + roleCode);
+        }
     }
 }

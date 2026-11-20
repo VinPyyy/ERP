@@ -39,3 +39,19 @@
 - 该规则同样作用于 `update` 改名路径（改名撞上已删用户名同样拒绝）。
 - 物理删除（DBA 手工 DELETE）可释放用户名，属运维操作，不在应用语义内。
 - 其他带逻辑删除 + 唯一索引的表（如 `sys_role.role_code`）存在同类隐患，未逐一排查——列为待办，新增表时唯一索引必须显式考虑 `deleted` 列。
+
+## 6. 通则扩展（2026-11-21，关闭上述待办）
+
+用户实测复现同类缺陷：商品编码 `11` 建→删→重建报 500。按 §3 同款模式全量排查 V1 唯一索引 × 逻辑删除交集，落地：
+
+| 表/编码 | 服务 | mapper 方法 | 消息 |
+|---|---|---|---|
+| base_product.sku_code | ProductService | `countDeletedByCode` | 该商品编码曾被使用: x |
+| base_supplier.code | SupplierService | 同上 | 该供应商编码曾被使用: x |
+| base_customer.code | CustomerService | 同上 | 该客户编码曾被使用: x |
+| base_warehouse.code | WarehouseService | 同上 | 该仓库编码曾被使用: x |
+| sys_role.role_code | RoleService | 同上 | 该角色编码曾被使用: x |
+
+排查结论：其余唯一索引不受影响——`doc_no` 类（流水号永不复用）、`uk_user_role`/`uk_role_perm`（重授权走 `deleteHardBy*` 硬删重建，无已删残留）、`uk_lot_sku_no`（批次只增不删）、`uk_stock/lot_stock/sn`（M3 不变量域，无删除路径）、`sys_config.param_key`（无删除端点）、category 无唯一索引。
+
+验证：单测 +5（`ProductServiceTest.createReusingDeletedSkuCodeThrowsFriendlyError`、`RoleServiceTest.createReusingDeletedRoleCodeThrowsFriendlyError`、`CategoryWarehouseCustomerTest.deletedCodesArePermanentlyReservedForAllArchives` 覆盖仓/客/供）；inventory-smoke 步骤 15（建码→删→重建=10001 曾被使用）；用户场景实测见执行记录。

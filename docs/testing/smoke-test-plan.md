@@ -69,6 +69,7 @@
 | 10-11 | 作废（原因必填）→ 归零且对账仍干净 | qty=0 consistent | `voidReversesBySnapshot` |
 | 12-13 | LOT_SN 商品期初审核 → 三级一致（汇总=批次SUM=SN COUNT=2） | 三值相等 | 审查 I5 补位（`lotManagedRequiresLotAndKeepsInvariant` 的冒烟层镜像） |
 | 14 | 批次期初作废 → SN 翻回 OUT、批次行归零、对账干净 | consistent=true | `voidLotManagedOpeningReversesLotStock` |
+| 15 | 商品编码建→删→同码重建（唯一索引含已删行通则） | 10001 含"曾被使用"（修复前 500） | `createReusingDeletedSkuCodeThrowsFriendlyError`（username-lifecycle §6） |
 
 **副作用**：runid 后缀仓库/商品行留在 dev 库（名称唯一不互踩）；期初全部最终作废，库存净变化 0。
 
@@ -101,6 +102,7 @@
 | 2026-11-21 | purchase-smoke | 9/9 通过（首轮，×2） | M4 任务 6 首轮 |
 | 2026-11-21 | purchase-smoke（审查修复批 10 步） | 10/10 通过（×2；auth 12/12、inventory 回归同步通过） | 首跑步骤 06 假通过暴露环境坑：dev 库 ratio 曾被手工调成 0.1，溢收 1 件合法——改用再入 100 件保证任何正常 ratio 下必拒；同时新步骤实测了 I6 草稿作废 |
 | 2026-11-21 | auth-smoke（扩至 13 步） | 13/13 通过（inventory 15/15、purchase 10/10 同步回归绿） | 步骤 13=引用数据分权回归（受限用户 roles 403 + options 200），配套浏览器实测见 docs/system/reference-options.md §4 |
+| 2026-11-21 | inventory-smoke（扩至 16 步） | 16/16 通过（auth 13/13、purchase 10/10 同步回归绿） | 步骤 15=编码删除后重建"曾被使用"（用户实测缺陷回归，username-lifecycle §6）；用户原始场景 dev 库实测 `POST /basedata/products skuCode=11` → 10001（修复前 500） |
 
 ## 4. 落地规则（新增冒烟场景时）
 

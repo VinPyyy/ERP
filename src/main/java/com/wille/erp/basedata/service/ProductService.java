@@ -108,6 +108,10 @@ public class ProductService {
         if (count > 0) {
             throw new BizException(ErrorCode.PRODUCT_CODE_DUPLICATED, "商品编码已存在: " + skuCode);
         }
+        // 已删行仍占唯一索引：提前拦截，否则 insert 撞 Duplicate entry 变 500（username-lifecycle 通则）
+        if (productMapper.countDeletedByCode(skuCode) > 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "该商品编码曾被使用: " + skuCode);
+        }
     }
 
     private void apply(BaseProduct product, ProductSaveRequest request) {

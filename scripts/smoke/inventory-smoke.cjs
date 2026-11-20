@@ -135,6 +135,18 @@ function check(name, cond, detail) {
   check('14 批次期初作废后归零对账干净', void2.code === 0 && replay3.data.consistent === true,
     `void=${void2.code} consistent=${replay3.data && replay3.data.consistent}`)
 
+  // 15 商品编码删除后重建 → 友好"曾被使用"（唯一索引含已删行，username-lifecycle 通则）
+  const dupCode = `SMKDUP${RUN}`
+  const dupProd = await api('POST', '/basedata/products', {
+    skuCode: dupCode, name: `冒烟编码回收${RUN}`, unit: '个', mgmtMode: 'NONE', status: 1,
+  })
+  await api('DELETE', `/basedata/products/${dupProd.data}`)
+  const dupAgain = await api('POST', '/basedata/products', {
+    skuCode: dupCode, name: `冒烟编码回收2${RUN}`, unit: '个', mgmtMode: 'NONE', status: 1,
+  })
+  check('15 删除后同码重建 → 10001 曾被使用', dupProd.code === 0 && dupAgain.code === 10001
+    && /曾被使用/.test(dupAgain.msg || ''), JSON.stringify(dupAgain).slice(0, 140))
+
   const failed = results.filter((r) => !r.pass)
   console.log('\n库存冒烟结果：')
   for (const r of results) console.log(`  ${r.pass ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? '  [' + r.detail + ']' : ''}`)

@@ -44,6 +44,16 @@ class RoleServiceTest {
     }
 
     @Test
+    void createReusingDeletedRoleCodeThrowsFriendlyError() {
+        // username-lifecycle 通则：角色编码删除后重建须友好拒绝而非撞唯一索引 500
+        roleService.delete(roleService.create(req("R_DUPX", "临时角色")));
+
+        assertThatThrownBy(() -> roleService.create(req("R_DUPX", "复活角色")))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("曾被使用");
+    }
+
+    @Test
     void deleteBuiltInRoleThrows() {
         // V2 预置五角色 built_in=1（id 1..5）
         assertThatThrownBy(() -> roleService.delete(2L))

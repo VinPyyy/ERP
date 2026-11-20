@@ -15,4 +15,8 @@ public interface SysRoleMapper extends BaseMapper<SysRole> {
             WHERE ur.user_id = #{userId} AND r.deleted = 0 AND ur.deleted = 0
             """)
     List<String> selectRoleCodesByUserId(@Param("userId") Long userId);
+
+    /** 已删行仍占 DB 唯一索引 uk_sys_role_code：显式计数供"曾被使用"友好拦截（docs/system/username-lifecycle.md 通则） */
+    @Select("select count(*) from sys_role where role_code = #{code} and deleted = 1")
+    long countDeletedByCode(@Param("code") String code);
 }

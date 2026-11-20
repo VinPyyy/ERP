@@ -33,6 +33,8 @@ class CategoryWarehouseCustomerTest {
     @Autowired
     private ProductService productService;
     @Autowired
+    private SupplierService supplierService;
+    @Autowired
     private DataFactory dataFactory;
 
     @Test
@@ -112,6 +114,31 @@ class CategoryWarehouseCustomerTest {
         assertThatThrownBy(() -> customerService.create(request))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("编码");
+    }
+
+    @Test
+    void deletedCodesArePermanentlyReservedForAllArchives() {
+        // username-lifecycle 通则覆盖：仓库/客户/供应商编码删除后重建一律"曾被使用"拒绝（非 500）
+        WarehouseSaveRequest wh = new WarehouseSaveRequest();
+        wh.setCode("WH-RES");
+        wh.setName("预留仓");
+        warehouseService.delete(warehouseService.create(wh));
+        assertThatThrownBy(() -> warehouseService.create(wh))
+                .isInstanceOf(BizException.class).hasMessageContaining("曾被使用");
+
+        PartnerSaveRequest cu = new PartnerSaveRequest();
+        cu.setCode("CU-RES");
+        cu.setName("预留客户");
+        customerService.delete(customerService.create(cu));
+        assertThatThrownBy(() -> customerService.create(cu))
+                .isInstanceOf(BizException.class).hasMessageContaining("曾被使用");
+
+        PartnerSaveRequest su = new PartnerSaveRequest();
+        su.setCode("SU-RES");
+        su.setName("预留供应商");
+        supplierService.delete(supplierService.create(su));
+        assertThatThrownBy(() -> supplierService.create(su))
+                .isInstanceOf(BizException.class).hasMessageContaining("曾被使用");
     }
 
     @Test

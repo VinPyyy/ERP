@@ -64,6 +64,10 @@ public class WarehouseService {
         if (count > 0) {
             throw new BizException(ErrorCode.PARAM_INVALID, "仓库编码已存在: " + code);
         }
+        // 已删行仍占唯一索引：提前拦截，否则 insert 撞 Duplicate entry 变 500（username-lifecycle 通则）
+        if (warehouseMapper.countDeletedByCode(code) > 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "该仓库编码曾被使用: " + code);
+        }
     }
 
     private void apply(BaseWarehouse warehouse, WarehouseSaveRequest request) {

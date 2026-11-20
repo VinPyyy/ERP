@@ -86,6 +86,7 @@
 import { reactive, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { userApi, roleApi, type UserVO, type UserSaveRequest, type RoleVO } from '@/api/system'
+import { encryptPassword } from '@/api/passwordCrypto'
 import { useTable } from '@/composables/useTable'
 
 const { loading, rows, total, query, load, search } = useTable<UserVO>(
@@ -152,7 +153,12 @@ function openReset(row: UserVO) {
 }
 
 async function doReset() {
-  await userApi.resetPassword(resettingId, resetPassword.value)
+  if (resetPassword.value.length < 6) {
+    ElMessage.warning('新密码至少 6 位')
+    return
+  }
+  const cred = await encryptPassword(resetPassword.value)
+  await userApi.resetPassword(resettingId, cred)
   ElMessage.success('密码已重置')
   resetVisible.value = false
 }

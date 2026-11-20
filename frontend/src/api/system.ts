@@ -1,4 +1,5 @@
 import http from './http'
+import type { EncryptedCredential } from './passwordCrypto'
 
 /** 系统管理 API 封装（M1）。http 拦截器已剥 R 外壳，返回 data。 */
 
@@ -32,7 +33,8 @@ export const userApi = {
   get: (id: number) => http.get(`/system/users/${id}`) as any as Promise<UserVO>,
   create: (data: UserSaveRequest) => http.post('/system/users', data) as any as Promise<number>,
   update: (id: number, data: UserSaveRequest) => http.put(`/system/users/${id}`, data),
-  resetPassword: (id: number, password: string) => http.put(`/system/users/${id}/password`, { password }),
+  /** 新密码经一次性挑战 RSA-OAEP 加密后传输（与登录同一机制） */
+  resetPassword: (id: number, cred: EncryptedCredential) => http.put(`/system/users/${id}/password`, cred),
   remove: (id: number) => http.delete(`/system/users/${id}`)
 }
 

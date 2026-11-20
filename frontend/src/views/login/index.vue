@@ -128,7 +128,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, User, WarningFilled } from '@element-plus/icons-vue'
 import http from '@/api/http'
-import { encryptLoginPassword, LOGIN_CHALLENGE_INVALID } from '@/api/loginCrypto'
+import { encryptPassword, LOGIN_CHALLENGE_INVALID } from '@/api/passwordCrypto'
 import { useAuthStore } from '@/stores/auth'
 
 const REMEMBER_KEY = 'erp.login.…name'
@@ -172,13 +172,13 @@ function checkCaps(e: KeyboardEvent | FocusEvent) {
 }
 
 async function postLogin() {
-  const cred = await encryptLoginPassword(form.password)
+  const cred = await encryptPassword(form.password)
   try {
     return (await http.post('/auth/login', { username: form.username, ...cred })) as unknown as { token: string }
   } catch (e) {
     // 挑战过期（页面停留超 TTL）：静默重取挑战重试一次
     if ((e as Error & { code?: number }).code === LOGIN_CHALLENGE_INVALID) {
-      const fresh = await encryptLoginPassword(form.password)
+      const fresh = await encryptPassword(form.password)
       return (await http.post('/auth/login', { username: form.username, ...fresh })) as unknown as {
         token: string
       }

@@ -18,11 +18,11 @@ export const LOGIN_CHALLENGE_INVALID = 10006
 
 /**
  * 领取一次性挑战，RSA-OAEP(SHA-256/MGF1-SHA1) 加密 "nonce.密码"。
- * 选 node-forge 而非 WebCrypto：crypto.subtle 仅在安全上下文可用，
- * 内网 HTTP 部署会直接不可用；forge 为纯 JS，环境无关。
- * 本模块只被登录页引用，forge 进 login 懒加载 chunk，不进主包。
+ * 登录与重置密码共用；选 node-forge 而非 WebCrypto：crypto.subtle 仅在
+ * 安全上下文可用，内网 HTTP 部署会直接不可用；forge 为纯 JS，环境无关。
+ * 模块被登录页与用户管理页引用，forge 随这两个懒加载 chunk 走，不进主包。
  */
-export async function encryptLoginPassword(password: string): Promise<EncryptedCredential> {
+export async function encryptPassword(password: string): Promise<EncryptedCredential> {
   const challenge = (await http.get('/auth/crypto')) as unknown as CryptoChallenge
   const publicKey = forge.pki.publicKeyFromPem(challenge.publicKey)
   // node-forge 1.x 三参签名：scheme 字符串 + options（md=SHA-256，mgf1=SHA-1，对齐 Java OAEPWithSHA-256AndMGF1Padding）

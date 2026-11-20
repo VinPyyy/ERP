@@ -34,7 +34,7 @@
             <el-button v-perm="'purchase:return:audit'" link type="primary" :disabled="row.status !== 'DRAFT'" @click="audit(row)">
               <template #icon><Check /></template>审核
             </el-button>
-            <el-button v-perm="'purchase:return:void'" link type="danger" :disabled="row.status !== 'AUDITED'" @click="voidDoc(row)">
+            <el-button v-perm="'purchase:return:void'" link type="danger" :disabled="row.status !== 'AUDITED' && row.status !== 'DRAFT'" @click="voidDoc(row)">
               <template #icon><Delete /></template>作废
             </el-button>
           </template>
@@ -50,6 +50,10 @@
         <el-table-column prop="skuName" label="商品" min-width="130" />
         <el-table-column prop="qty" label="数量" width="80" />
         <el-table-column prop="price" label="单价" width="90" />
+        <el-table-column prop="lotNo" label="批号" width="100" />
+        <el-table-column label="SN" min-width="130">
+          <template #default="{ row }">{{ (row.snList || []).join(', ') }}</template>
+        </el-table-column>
         <el-table-column prop="reason" label="原因" min-width="140" />
       </el-table>
     </el-dialog>
@@ -79,6 +83,8 @@
               </el-select>
               <el-input-number v-model="line.qty" :min="0.0001" :precision="4" style="width: 110px" />
               <el-input-number v-model="line.price" :min="0" :precision="6" :disabled="!!form.sourceInboundId" placeholder="单价" style="width: 110px" />
+              <el-input v-model="line.lotNo" placeholder="批号" style="width: 100px" :disabled="!!form.sourceInboundId" />
+              <el-input v-model="line.snText" placeholder="SN 逗号分隔" style="width: 140px" />
               <el-input v-model="line.reason" placeholder="退货原因（必填）" style="width: 150px" />
               <el-button link type="danger" @click="form.items.splice(i, 1)"><template #icon><Delete /></template>删</el-button>
             </div>
@@ -95,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { inboundApi, returnApi, type DocHead, type DocVO } from '@/api/purchase'
 import { productApi, supplierApi, warehouseApi, type ProductVO, type WarehouseVO, type PartnerVO } from '@/api/basedata'
@@ -106,11 +112,13 @@ const keyword = ref('')
 const suppliers = ref<PartnerVO[]>([])
 const warehouses = ref<WarehouseVO[]>([])
 const products = ref<ProductVO[]>([])
-const auditedInbounds = ref<DocHead[]>([])
+const allInbounds = ref<DocHead[]>([])
+// 审查 M6：仅已审核入库单可作为退货源
+const auditedInbounds = computed(() => allInbounds.value.filter((o) => o.status === 'AUDITED'))
 const { loading, rows, total, query, load, search } = useTable<DocHead>((q) => returnApi.page(q) as any)
 
 const nameOf = (list: { id: number; name: string }[], id?: number) => list.find((x) => x.id === id)?.name ?? String(id ?? '-')
-const inboundNo = (id?: number | null) => auditedInbounds.value.find((o) => o.id === id)?.docNo ?? (id ? String(id) : '—')
+const inboundNo = (id?: number | null) => allInbounds.value.find((o) => o.id === id)?.docNo ?? (id ? String(id) : '—')
 const text = (s: string) => ({ DRAFT: '草稿', AUDITED: '已审核', COMPLETED: '已完成', VOIDED: '已作废' }[s] ?? s)
 const tag = (s: string) => ({ DRAFT: 'info', AUDITED: 'success', COMPLETED: '', VOIDED: 'danger' }[s] ?? 'info')
 
@@ -121,14 +129,14 @@ async function openDetail(row: { id: number }) {
   detailVisible.value = true
 }
 
-interface Line { skuId?: number; qty: number; price?: number; reason: string; sourceInboundItemId?: number }
+interface Line { skuId?: number; qty: number; price?: number; lotNo?: string; snText?: string; reason: string; sourceInboundItemId?: number }
 const createVisible = ref(false)
 const saving = ref(false)
 const form = reactive<{ supplierId?: number; warehouseId?: number; sourceInboundId?: number; items: Line[] }>({
   supplierId: undefined, warehouseId: undefined, sourceInboundId: undefined, items: []
 })
-function addLine() {
-  form.items.push({ skuId: undefined, qty: 1, price: undefined, reason: '' })
+function addLine(preset?: Partial<Line>) {
+  form.items.push({ skuId: undefined, qty: 1, price: undefined, lotNo: '', snText: '', reason: '', ...preset })
 }
 function openCreate() {
   Object.assign(form, { supplierId: undefined, warehouseId: undefined, sourceInboundId: undefined, items: [] })
@@ -148,7 +156,7 @@ async function onSourceChange(inboundId?: number) {
   }
   const d = await inboundApi.get(inboundId)
   for (const line of d.items) {
-    form.items.push({ skuId: line.skuId, qty: line.qty, price: line.price ?? undefined, reason: '', sourceInboundItemId: line.id })
+    addLine({ skuId: line.skuId, qty: line.qty, price: line.price ?? undefined, lotNo: line.lotNo ?? '', sourceInboundItemId: line.id })
   }
   if (form.items.length === 0) addLine()
 }
@@ -169,7 +177,10 @@ async function save() {
       sourceInboundId: form.sourceInboundId ?? null,
       items: form.items.map((l) => ({
         sourceInboundItemId: l.sourceInboundItemId ?? null,
-        skuId: l.skuId, qty: l.qty, price: l.price ?? null, reason: l.reason.trim()
+        skuId: l.skuId, qty: l.qty, price: l.price ?? null,
+        lotNo: l.lotNo || null,
+        snList: l.snText ? l.snText.split(/[,，]/).map((s) => s.trim()).filter(Boolean) : null,
+        reason: l.reason.trim()
       }))
     })
     ElMessage.success('已保存')
@@ -203,11 +214,11 @@ onMounted(async () => {
   suppliers.value = (await supplierApi.page({ pageSize: 200 })).records
   warehouses.value = await warehouseApi.list()
   products.value = (await productApi.page({ pageSize: 200 })).records
-  auditedInbounds.value = (await inboundApi.page({ pageSize: 200 })).records
+  allInbounds.value = (await inboundApi.page({ pageSize: 200 })).records
   await load()
 })
 </script>
 
 <style scoped>
-.line-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.line-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; align-items: center; }
 </style>

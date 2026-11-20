@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 采购订单（spec §2.4/§3e-3）：审核不锁库存（采购订单无锁定语义）；
@@ -47,6 +48,7 @@ public class OrderService {
 
     @Transactional(rollbackFor = Exception.class)
     public Long create(OrderSaveRequest request) {
+        requireWarehouseVisible(request.getWarehouseId());
         PurOrder doc = new PurOrder();
         doc.setDocNo(docNoService.nextNo(DocType.PUR_ORDER));
         doc.setStatus(DocStatus.DRAFT);
@@ -72,7 +74,7 @@ public class OrderService {
 
     @Transactional(rollbackFor = Exception.class)
     public void audit(Long id) {
-        requireDoc(id);
+        requireWarehouseVisible(requireDoc(id).getWarehouseId());
         int updated = orderMapper.update(null, Wrappers.<PurOrder>lambdaUpdate()
                 .eq(PurOrder::getId, id).eq(PurOrder::getStatus, DocStatus.DRAFT)
                 .set(PurOrder::getStatus, DocStatus.AUDITED)
@@ -89,7 +91,7 @@ public class OrderService {
         if (reason == null || reason.isBlank()) {
             throw new BizException(ErrorCode.PARAM_INVALID, "作废原因必填");
         }
-        requireDoc(id);
+        requireWarehouseVisible(requireDoc(id).getWarehouseId());
         Long downstream = inboundMapper.selectCount(Wrappers.<PurInbound>lambdaQuery()
                 .eq(PurInbound::getSourceOrderId, id)
                 .ne(PurInbound::getStatus, DocStatus.VOIDED));
@@ -113,6 +115,7 @@ public class OrderService {
     @Transactional(rollbackFor = Exception.class)
     public void closeItem(Long orderId, Long itemId) {
         PurOrder doc = requireDoc(orderId);
+        requireWarehouseVisible(doc.getWarehouseId());
         if (doc.getStatus() != DocStatus.AUDITED) {
             throw new BizException(ErrorCode.DOC_STATUS_CHANGED, "仅已审核订单可关行");
         }
@@ -120,11 +123,13 @@ public class OrderService {
         if (item == null || !item.getDocId().equals(orderId)) {
             throw new BizException(ErrorCode.PARAM_INVALID, "订单行不存在");
         }
-        if (item.getLineStatus() != 10) {
+        // M4 审查 C1：只条件更新 line_status——整实体 updateById 会把读到的旧 doneQty 写回，覆盖并发入库审核
+        int rows = orderItemMapper.update(null, Wrappers.<PurOrderItem>lambdaUpdate()
+                .eq(PurOrderItem::getId, itemId).eq(PurOrderItem::getLineStatus, 10)
+                .set(PurOrderItem::getLineStatus, 40));
+        if (rows == 0) {
             throw new BizException(ErrorCode.DOC_STATUS_CHANGED, "该行已终态");
         }
-        item.setLineStatus(40);
-        orderItemMapper.updateById(item);
         completeIfAllTerminal(orderId);
     }
 
@@ -132,6 +137,7 @@ public class OrderService {
     @Transactional(rollbackFor = Exception.class)
     public Long createInbound(Long orderId) {
         PurOrder doc = requireDoc(orderId);
+        requireWarehouseVisible(doc.getWarehouseId());
         if (doc.getStatus() != DocStatus.AUDITED) {
             throw new BizException(ErrorCode.DOC_STATUS_CHANGED, "仅已审核订单可生成入库单");
         }
@@ -207,19 +213,36 @@ public class OrderService {
     }
 
     public com.wille.erp.common.api.PageResult<PurOrder> page(int pageNum, int pageSize, String keyword) {
+        Set<Long> scope = currentUser.warehouseScope();
+        if (scope != null && scope.isEmpty()) {
+            com.wille.erp.common.api.PageResult<PurOrder> empty = new com.wille.erp.common.api.PageResult<>();
+            empty.setTotal(0);
+            empty.setRecords(List.of());
+            return empty;
+        }
         com.baomidou.mybatisplus.extension.plugins.pagination.Page<PurOrder> page = orderMapper.selectPage(
                 new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, pageSize),
                 Wrappers.<PurOrder>lambdaQuery()
+                        .in(scope != null, PurOrder::getWarehouseId, scope == null ? Set.of() : scope)
                         .like(keyword != null && !keyword.isBlank(), PurOrder::getDocNo, keyword)
                         .orderByDesc(PurOrder::getId));
         return com.wille.erp.common.api.PageResult.of(page);
     }
 
     public com.wille.erp.purchase.dto.OrderVO get(Long id) {
+        PurOrder doc = requireDoc(id);
+        requireWarehouseVisible(doc.getWarehouseId());
         com.wille.erp.purchase.dto.OrderVO vo = new com.wille.erp.purchase.dto.OrderVO();
-        vo.setDoc(requireDoc(id));
+        vo.setDoc(doc);
         vo.setItems(orderItemMapper.selectList(Wrappers.<PurOrderItem>lambdaQuery()
                 .eq(PurOrderItem::getDocId, id).orderByAsc(PurOrderItem::getLineNo)));
         return vo;
+    }
+
+    private void requireWarehouseVisible(Long warehouseId) {
+        Set<Long> scope = currentUser.warehouseScope();
+        if (scope != null && !scope.contains(warehouseId)) {
+            throw new BizException(ErrorCode.NO_PERMISSION, "无该仓库数据权限");
+        }
     }
 }

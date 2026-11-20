@@ -6,7 +6,9 @@ import com.wille.erp.inventory.api.LotApi;
 import com.wille.erp.inventory.entity.InvLot;
 import com.wille.erp.inventory.mapper.InvLotMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
@@ -19,8 +21,7 @@ public class LotApiImpl implements LotApi {
 
     @Override
     public Long materialize(Long skuId, String lotNo, LocalDate productionDate) {
-        InvLot lot = lotMapper.selectOne(Wrappers.<InvLot>lambdaQuery()
-                .eq(InvLot::getSkuId, skuId).eq(InvLot::getLotNo, lotNo));
+        InvLot lot = selectBySkuLot(skuId, lotNo);
         if (lot != null) {
             return lot.getId();
         }
@@ -34,7 +35,33 @@ public class LotApiImpl implements LotApi {
                 lot.setExpiryDate(productionDate.plusDays(p.shelfLifeDays()));
             }
         }
-        lotMapper.insert(lot);
+        try {
+            lotMapper.insert(lot);
+        } catch (DuplicateKeyException e) {
+            // M4 审查 M4：并发物化撞 UNIQUE(sku_id,lot_no) → 复用他事务刚落库的行
+            InvLot winner = selectBySkuLot(skuId, lotNo);
+            if (winner == null) {
+                throw e;
+            }
+            return winner.getId();
+        }
         return lot.getId();
+    }
+
+    @Override
+    public LotView find(Long skuId, String lotNo) {
+        InvLot lot = selectBySkuLot(skuId, lotNo);
+        return lot == null ? null : new LotView(lot.getId(), lot.getLotNo());
+    }
+
+    @Override
+    public LotView byId(Long lotId) {
+        InvLot lot = lotMapper.selectById(lotId);
+        return lot == null ? null : new LotView(lot.getId(), lot.getLotNo());
+    }
+
+    private InvLot selectBySkuLot(Long skuId, String lotNo) {
+        return lotMapper.selectOne(Wrappers.<InvLot>lambdaQuery()
+                .eq(InvLot::getSkuId, skuId).eq(InvLot::getLotNo, lotNo));
     }
 }

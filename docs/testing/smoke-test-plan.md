@@ -82,13 +82,14 @@
 |---|---|---|---|
 | 01 | admin 加密登录 | code 0 | auth-smoke |
 | 02 | runid 仓库/双供应商/商品 | code 0 | — |
-| 03 | 询价→审核→双行选中→转单 | 2 张订单草稿 | `convertGroupsSelectedLinesBySupplier` |
+| 03 | 询价→审核→双行选中→转单（get 契约 {doc,items}） | 2 张订单草稿 | `convertGroupsSelectedLinesBySupplier`、`getAndPageFollowDocVoShapeWithEnumStatus` |
 | 04 | 订单审核→create-inbound→入库审核 | 库存 10@50 | `createInboundCarriesUnfulfilledLines` |
 | 05 | done_qty=qty 行完成头完成 | COMPLETED | `partialInboundDoneQtyFlowAndAutoComplete` |
-| 06 | 有源退货 4（手传价 99 被强制原单价） | 库存 6 | `returnWithSourceCarriesPriceAndBlocksOverReturn` |
-| 07 | 退货作废回库 | 库存 10 | `voidReturnReversesOutboundDirection` |
-| 08 | 入库作废（下游已清） | 库存 0、done 回减 | `voidInboundRollsBackDoneQtyAndStock` |
-| 09 | replay-check | consistent=true | `FlowReplayCheckerTest` |
+| 06 | 溢收再入 100 件被拒（数量取大不依赖 ratio 种子值）+ 失败草稿直接作废（审查修复批） | 40001 + void code 0 | `overReceiveBoundaryMatrix`、`voidDraftInboundAllowedWithoutStockEffect` |
+| 07 | 有源退货 4（手传价 99 被强制原单价） | 库存 6 | `returnWithSourceCarriesPriceAndBlocksOverReturn` |
+| 08 | 退货作废回库 | 库存 10 | `voidReturnReversesOutboundDirection` |
+| 09 | 入库作废（下游已清） | 库存 0、done 回减 | `voidInboundRollsBackDoneQtyAndStock` |
+| 10 | replay-check | consistent=true | `FlowReplayCheckerTest` |
 
 ## 3. 执行记录
 
@@ -96,6 +97,8 @@
 |---|---|---|---|
 | 2026-11-20 | auth-smoke | 12/12 通过（连续两次运行验证 runid 隔离可复跑） | 由 TEMP 一次性脚本 ×3 合并落地；前身脚本场景全部保留并扩充至 12 例 |
 | 2026-11-21 | inventory-smoke | 11/11 通过（连续两次，净库存变化 0） | 首跑暴露 JSON 枚举按 ordinal 解析坑（mgmtMode:1→LOT），改枚举名后全绿 |
+| 2026-11-21 | purchase-smoke | 9/9 通过（首轮，×2） | M4 任务 6 首轮 |
+| 2026-11-21 | purchase-smoke（审查修复批 10 步） | 10/10 通过（×2；auth 12/12、inventory 回归同步通过） | 首跑步骤 06 假通过暴露环境坑：dev 库 ratio 曾被手工调成 0.1，溢收 1 件合法——改用再入 100 件保证任何正常 ratio 下必拒；同时新步骤实测了 I6 草稿作废 |
 
 ## 4. 落地规则（新增冒烟场景时）
 

@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class InboundController {
 
     private final InboundService inboundService;
+    private final com.wille.erp.purchase.service.ReturnService returnService;
 
     @Data
     public static class VoidRequest {
@@ -68,5 +69,12 @@ public class InboundController {
     @SaCheckPermission("purchase:inbound:list")
     public R<com.wille.erp.purchase.dto.InboundVO> get(@PathVariable Long id) {
         return R.ok(inboundService.get(id));
+    }
+
+    /** spec §5：从入库单发起退货——按可退余量生成退货草稿（M4 审查 I7，权限点 1116） */
+    @PostMapping("/{id}/create-return")
+    @SaCheckPermission("purchase:inbound:create-return")
+    public R<Long> createReturn(@PathVariable Long id) {
+        return R.ok(returnService.createFromInbound(id));
     }
 }

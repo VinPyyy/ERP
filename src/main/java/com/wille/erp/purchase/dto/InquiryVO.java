@@ -1,35 +1,17 @@
 package com.wille.erp.purchase.dto;
 
+import com.wille.erp.purchase.entity.PurInquiry;
+import com.wille.erp.purchase.entity.PurInquiryItem;
 import lombok.Data;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 询价详情（M4 审查 C2）：统一 {doc,items} 形态 + 枚举名状态，与订单/入库/退货 VO 对齐，
+ * 前端按同一 DocVO 契约消费。
+ */
 @Data
 public class InquiryVO {
-    private Long id;
-    private String docNo;
-    private Integer status;
-    private String title;
-    private LocalDate docDate;
-    private LocalDateTime auditTime;
-    private String voidReason;
-    private List<InquiryItemVO> items;
-
-    @Data
-    public static class InquiryItemVO {
-        private Long id;
-        private Integer lineNo;
-        private Long skuId;
-        private String skuName;
-        private String unit;
-        private Long supplierId;
-        private BigDecimal qty;
-        private BigDecimal price;
-        private BigDecimal amount;
-        private Integer leadTimeDays;
-        private Integer selected;
-    }
+    private PurInquiry doc;
+    private List<PurInquiryItem> items;
 }

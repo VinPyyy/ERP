@@ -81,8 +81,19 @@ function check(name, cond, detail) {
   check('05 订单行完成头完成', orderFull.doc.status === 'COMPLETED' && orderFull.items[0].doneQty === 10,
     `doc=${orderFull.doc.status} done=${orderFull.items[0].doneQty}`)
 
-  // 06 退货（有原单，价强制原单价）4 件 → 库存 6
+  // 06 溢收拒绝（done=10 再入 100——任何正常 ratio 下必超限 → 40001）+ 失败草稿直接作废（审查 I6 行为）
+  // 注：不依赖 ratio 种子值——dev 库该参数可能被手工改过（首轮 06 假通过就是这么来的）
   const inbItems = (await api('GET', `/purchase/inbounds/${inbound.data}`)).data.items
+  const over = await api('POST', '/purchase/inbounds', {
+    supplierId: supA.data, warehouseId: wh.data, sourceOrderId: orderA,
+    items: [{ sourceOrderItemId: inbItems[0].sourceOrderItemId, skuId: prod.data, qty: 100, price: 5 }],
+  })
+  const overAudit = await api('POST', `/purchase/inbounds/${over.data}/audit`)
+  const overVoid = await api('POST', `/purchase/inbounds/${over.data}/void`, { reason: '溢收示例草稿清理' })
+  check('06 溢收拒40001+草稿作废', over.code === 0 && overAudit.code === 40001 && overVoid.code === 0,
+    `audit=${overAudit.code}(${overAudit.msg}) void=${overVoid.code}`)
+
+  // 07 退货（有原单，价强制原单价）4 件 → 库存 6
   const ret = await api('POST', '/purchase/returns', {
     supplierId: supA.data, warehouseId: wh.data, sourceInboundId: inbound.data,
     items: [{ sourceInboundItemId: inbItems[0].id, skuId: prod.data, qty: 4, price: 99, reason: '质量不符' }],
@@ -90,23 +101,23 @@ function check(name, cond, detail) {
   await api('POST', `/purchase/returns/${ret.data}/audit`)
   const stocks2 = await api('GET', `/inventory/stocks?keyword=PP${RUN}`)
   const row2 = stocks2.data && stocks2.data.records.find((r) => r.warehouseId === wh.data)
-  check('06 退货出库至 6', ret.code === 0 && row2 && row2.qty === 6, `qty=${row2 && row2.qty}`)
+  check('07 退货出库至 6', ret.code === 0 && row2 && row2.qty === 6, `qty=${row2 && row2.qty}`)
 
-  // 07 退货作废 → 回 10
+  // 08 退货作废 → 回 10
   await api('POST', `/purchase/returns/${ret.data}/void`, { reason: '误退' })
   const stocks3 = await api('GET', `/inventory/stocks?keyword=PP${RUN}`)
   const row3 = stocks3.data && stocks3.data.records.find((r) => r.warehouseId === wh.data)
-  check('07 退货作废回库 10', row3 && row3.qty === 10, `qty=${row3 && row3.qty}`)
+  check('08 退货作废回库 10', row3 && row3.qty === 10, `qty=${row3 && row3.qty}`)
 
-  // 08 入库作废（退货已作废，放行）→ done 回减、库存归零
+  // 09 入库作废（退货已作废，放行）→ done 回减、库存归零
   const voidInb = await api('POST', `/purchase/inbounds/${inbound.data}/void`, { reason: '整单错误' })
   const stocks4 = await api('GET', `/inventory/stocks?keyword=PP${RUN}`)
   const row4 = stocks4.data && stocks4.data.records.find((r) => r.warehouseId === wh.data)
-  check('08 入库作废归零', voidInb.code === 0 && row4 && row4.qty === 0, `code=${voidInb.code} qty=${row4 && row4.qty}`)
+  check('09 入库作废归零', voidInb.code === 0 && row4 && row4.qty === 0, `code=${voidInb.code} qty=${row4 && row4.qty}`)
 
-  // 09 对账零差异
+  // 10 对账零差异
   const replay = await api('GET', '/inventory/flows/replay-check')
-  check('09 replay consistent', replay.code === 0 && replay.data.consistent === true,
+  check('10 replay consistent', replay.code === 0 && replay.data.consistent === true,
     JSON.stringify(replay.data && replay.data.diffs && replay.data.diffs.slice(0, 2)))
 
   const failed = results.filter((r) => !r.pass)

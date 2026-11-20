@@ -62,7 +62,7 @@ public class InquiryController {
 
     @GetMapping
     @SaCheckPermission("purchase:inquiry:list")
-    public R<PageResult<InquiryVO>> page(@RequestParam(defaultValue = "1") int pageNum,
+    public R<PageResult<com.wille.erp.purchase.entity.PurInquiry>> page(@RequestParam(defaultValue = "1") int pageNum,
                                          @RequestParam(defaultValue = "20") int pageSize,
                                          @RequestParam(required = false) String keyword) {
         return R.ok(inquiryService.page(pageNum, pageSize, keyword));
@@ -92,7 +92,7 @@ public class InquiryController {
     @SaCheckPermission("purchase:inquiry:edit")
     public R<Void> select(@PathVariable Long id, @PathVariable Long itemId,
                           @Valid @RequestBody SelectRequest request) {
-        inquiryService.selectLine(itemId, Boolean.TRUE.equals(request.getSelected()));
+        inquiryService.selectLine(id, itemId, Boolean.TRUE.equals(request.getSelected()));
         return R.ok();
     }
 

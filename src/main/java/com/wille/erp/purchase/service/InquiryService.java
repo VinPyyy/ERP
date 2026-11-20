@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 询价单（spec §2.4）：意向文档，不碰库存财务；选中行按供应商分组转采购订单草稿。
@@ -94,9 +95,10 @@ public class InquiryService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void selectLine(Long itemId, boolean selected) {
+    public void selectLine(Long docId, Long itemId, boolean selected) {
         PurInquiryItem item = itemMapper.selectById(itemId);
-        if (item == null) {
+        // M4 审查 M1：路径单号与行归属必须一致，防止跨单改行
+        if (item == null || !item.getDocId().equals(docId)) {
             throw new BizException(ErrorCode.PARAM_INVALID, "询价行不存在");
         }
         PurInquiry doc = requireDoc(item.getDocId());
@@ -110,6 +112,11 @@ public class InquiryService {
     /** 选中行按供应商分组转采购订单草稿；转单后询价单置 COMPLETED（一次性，不可重复转） */
     @Transactional(rollbackFor = Exception.class)
     public List<Long> convertToOrders(Long id, Long warehouseId) {
+        // M4 审查 I1：生成的订单落在所选仓库，须有该仓数据权限（spec §5）
+        Set<Long> scope = currentUser.warehouseScope();
+        if (scope != null && !scope.contains(warehouseId)) {
+            throw new BizException(ErrorCode.NO_PERMISSION, "无该仓库数据权限");
+        }
         PurInquiry doc = requireDoc(id);
         if (doc.getStatus() != DocStatus.DRAFT && doc.getStatus() != DocStatus.AUDITED) {
             throw new BizException(ErrorCode.DOC_STATUS_CHANGED, "仅草稿/已审核询价单可转订单");
@@ -156,50 +163,22 @@ public class InquiryService {
         return orderIds;
     }
 
+    /** M4 审查 C2：详情统一 {doc,items}（实体直出，状态按枚举名序列化），与另三单据一致 */
     public InquiryVO get(Long id) {
-        PurInquiry doc = requireDoc(id);
         InquiryVO vo = new InquiryVO();
-        vo.setId(doc.getId());
-        vo.setDocNo(doc.getDocNo());
-        vo.setStatus(doc.getStatus().getCode());
-        vo.setTitle(doc.getTitle());
-        vo.setDocDate(doc.getDocDate());
-        vo.setAuditTime(doc.getAuditTime());
-        vo.setVoidReason(doc.getVoidReason());
+        vo.setDoc(requireDoc(id));
         vo.setItems(itemMapper.selectList(Wrappers.<PurInquiryItem>lambdaQuery()
-                        .eq(PurInquiryItem::getDocId, id).orderByAsc(PurInquiryItem::getLineNo)).stream()
-                .map(item -> {
-                    InquiryVO.InquiryItemVO iv = new InquiryVO.InquiryItemVO();
-                    iv.setId(item.getId());
-                    iv.setLineNo(item.getLineNo());
-                    iv.setSkuId(item.getSkuId());
-                    iv.setSkuName(item.getSkuName());
-                    iv.setUnit(item.getUnit());
-                    iv.setSupplierId(item.getSupplierId());
-                    iv.setQty(item.getQty());
-                    iv.setPrice(item.getPrice());
-                    iv.setAmount(item.getAmount());
-                    iv.setLeadTimeDays(item.getLeadTimeDays());
-                    iv.setSelected(item.getSelected());
-                    return iv;
-                }).toList());
+                .eq(PurInquiryItem::getDocId, id).orderByAsc(PurInquiryItem::getLineNo)));
         return vo;
     }
 
-    public PageResult<InquiryVO> page(int pageNum, int pageSize, String keyword) {
+    /** 列表返回实体头（枚举名状态），前端 DocHead 契约 */
+    public PageResult<PurInquiry> page(int pageNum, int pageSize, String keyword) {
         Page<PurInquiry> page = inquiryMapper.selectPage(new Page<>(pageNum, pageSize),
                 Wrappers.<PurInquiry>lambdaQuery()
                         .like(keyword != null && !keyword.isBlank(), PurInquiry::getDocNo, keyword)
                         .orderByDesc(PurInquiry::getId));
-        return new PageResult<>(page.getTotal(), page.getRecords().stream().map(doc -> {
-            InquiryVO vo = new InquiryVO();
-            vo.setId(doc.getId());
-            vo.setDocNo(doc.getDocNo());
-            vo.setStatus(doc.getStatus().getCode());
-            vo.setTitle(doc.getTitle());
-            vo.setDocDate(doc.getDocDate());
-            return vo;
-        }).toList());
+        return PageResult.of(page);
     }
 
     // ---------- 内部 ----------

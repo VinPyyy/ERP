@@ -6,10 +6,12 @@ import com.wille.erp.basedata.entity.BaseProduct;
 import com.wille.erp.basedata.entity.BaseSupplier;
 import com.wille.erp.basedata.entity.BaseWarehouse;
 import com.wille.erp.common.api.ErrorCode;
+import com.wille.erp.common.enums.DocStatus;
 import com.wille.erp.common.enums.MgmtMode;
 import com.wille.erp.common.exception.BizException;
 import com.wille.erp.purchase.dto.InquiryItemRequest;
 import com.wille.erp.purchase.dto.InquirySaveRequest;
+import com.wille.erp.purchase.dto.InquiryVO;
 import com.wille.erp.purchase.entity.PurInquiry;
 import com.wille.erp.purchase.entity.PurInquiryItem;
 import com.wille.erp.purchase.entity.PurOrder;
@@ -125,9 +127,9 @@ class InquiryServiceTest {
         List<PurInquiryItem> items = itemMapper.selectList(Wrappers.<PurInquiryItem>lambdaQuery()
                 .eq(PurInquiryItem::getDocId, id).orderByAsc(PurInquiryItem::getLineNo));
         // 选中 A 组两行 + B 组一行；C 不选
-        inquiryService.selectLine(items.get(0).getId(), true);
-        inquiryService.selectLine(items.get(1).getId(), true);
-        inquiryService.selectLine(items.get(2).getId(), true);
+        inquiryService.selectLine(id, items.get(0).getId(), true);
+        inquiryService.selectLine(id, items.get(1).getId(), true);
+        inquiryService.selectLine(id, items.get(2).getId(), true);
 
         List<Long> orderIds = inquiryService.convertToOrders(id, wh.getId());
 
@@ -160,5 +162,44 @@ class InquiryServiceTest {
         assertThatThrownBy(() -> inquiryService.voidInquiry(id, "  "))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("原因");
+    }
+
+    @Test
+    void getAndPageFollowDocVoShapeWithEnumStatus() {
+        // C2：询价契约统一为 {doc,items} + 枚举名状态（与订单/入库/退货一致，前端 DocVO 消费）
+        BaseProduct p = dataFactory.product("INQ-P5", MgmtMode.NONE);
+        BaseSupplier s = dataFactory.supplier("INQ-SD");
+        InquirySaveRequest request = new InquirySaveRequest();
+        request.setTitle("契约统一");
+        request.setItems(List.of(line(p.getId(), s.getId(), "10", "5"), line(p.getId(), s.getId(), "5", "4")));
+        Long id = inquiryService.create(request);
+        inquiryService.audit(id);
+
+        InquiryVO vo = inquiryService.get(id);
+        assertThat(vo.getDoc().getId()).isEqualTo(id);
+        assertThat(vo.getDoc().getStatus()).isEqualTo(DocStatus.AUDITED);
+        assertThat(vo.getItems()).hasSize(2);
+        assertThat(vo.getItems().get(0).getSkuName()).isNotBlank();
+
+        assertThat(inquiryService.page(1, 20, null).getRecords())
+                .extracting(PurInquiry::getId).contains(id);
+    }
+
+    @Test
+    void selectLineRejectsForeignDocItem() {
+        // M1：select 路径 id 与行归属必须一致
+        BaseProduct p = dataFactory.product("INQ-P6", MgmtMode.NONE);
+        BaseSupplier s = dataFactory.supplier("INQ-SE");
+        InquirySaveRequest request = new InquirySaveRequest();
+        request.setItems(List.of(line(p.getId(), s.getId(), "1", "1")));
+        Long docA = inquiryService.create(request);
+        Long docB = inquiryService.create(request);
+        PurInquiryItem lineB = itemMapper.selectList(Wrappers.<PurInquiryItem>lambdaQuery()
+                .eq(PurInquiryItem::getDocId, docB)).get(0);
+
+        assertThatThrownBy(() -> inquiryService.selectLine(docA, lineB.getId(), true))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(ErrorCode.PARAM_INVALID);
     }
 }

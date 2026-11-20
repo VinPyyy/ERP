@@ -28,13 +28,16 @@
         <el-table-column label="状态" width="100">
           <template #default="{ row }"><el-tag :type="tag(row.status)" size="small">{{ text(row.status) }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="290" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)"><template #icon><View /></template>明细</el-button>
             <el-button v-perm="'purchase:inbound:audit'" link type="primary" :disabled="row.status !== 'DRAFT'" @click="audit(row)">
               <template #icon><Check /></template>审核
             </el-button>
-            <el-button v-perm="'purchase:inbound:void'" link type="danger" :disabled="row.status !== 'AUDITED'" @click="voidDoc(row)">
+            <el-button v-perm="'purchase:inbound:create-return'" link type="primary" :disabled="row.status !== 'AUDITED'" @click="startReturn(row)">
+              <template #icon><RefreshLeft /></template>退货
+            </el-button>
+            <el-button v-perm="'purchase:inbound:void'" link type="danger" :disabled="row.status !== 'AUDITED' && row.status !== 'DRAFT'" @click="voidDoc(row)">
               <template #icon><Delete /></template>作废
             </el-button>
           </template>
@@ -51,6 +54,7 @@
         <el-table-column prop="qty" label="实收" width="80" />
         <el-table-column prop="price" label="结算价" width="90" />
         <el-table-column prop="lotNo" label="批号" width="100" />
+        <el-table-column prop="productionDate" label="生产日期" width="110" />
         <el-table-column label="SN" min-width="140">
           <template #default="{ row }">{{ (row.snList || []).join(', ') }}</template>
         </el-table-column>
@@ -83,7 +87,8 @@
               <el-input-number v-model="line.qty" :min="0.0001" :precision="4" style="width: 120px" />
               <el-input-number v-model="line.price" :min="0" :precision="6" placeholder="结算价" style="width: 120px" />
               <el-input v-model="line.lotNo" placeholder="批号" style="width: 100px" />
-              <el-input v-model="line.snText" placeholder="SN 逗号分隔" style="width: 160px" />
+              <el-date-picker v-model="line.productionDate" type="date" value-format="YYYY-MM-DD" placeholder="生产日期" style="width: 135px" />
+              <el-input v-model="line.snText" placeholder="SN 逗号分隔" style="width: 150px" />
               <el-button link type="danger" @click="form.items.splice(i, 1)"><template #icon><Delete /></template>删</el-button>
             </div>
             <el-button link type="primary" @click="addLine()"><template #icon><Plus /></template>加行</el-button>
@@ -99,7 +104,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { inboundApi, orderApi, type DocHead, type DocVO } from '@/api/purchase'
 import { productApi, supplierApi, warehouseApi, type ProductVO, type WarehouseVO, type PartnerVO } from '@/api/basedata'
@@ -110,11 +115,13 @@ const keyword = ref('')
 const suppliers = ref<PartnerVO[]>([])
 const warehouses = ref<WarehouseVO[]>([])
 const products = ref<ProductVO[]>([])
-const auditedOrders = ref<DocHead[]>([])
+const allOrders = ref<DocHead[]>([])
+// 审查 M6：仅已审核订单可作为入库源（草稿/完成/作废不可选）
+const auditedOrders = computed(() => allOrders.value.filter((o) => o.status === 'AUDITED'))
 const { loading, rows, total, query, load, search } = useTable<DocHead>((q) => inboundApi.page(q) as any)
 
 const nameOf = (list: { id: number; name: string }[], id?: number) => list.find((x) => x.id === id)?.name ?? String(id ?? '-')
-const orderNo = (id?: number | null) => auditedOrders.value.find((o) => o.id === id)?.docNo ?? (id ? String(id) : '—')
+const orderNo = (id?: number | null) => allOrders.value.find((o) => o.id === id)?.docNo ?? (id ? String(id) : '—')
 const text = (s: string) => ({ DRAFT: '草稿', AUDITED: '已审核', COMPLETED: '已完成', VOIDED: '已作废' }[s] ?? s)
 const tag = (s: string) => ({ DRAFT: 'info', AUDITED: 'success', COMPLETED: '', VOIDED: 'danger' }[s] ?? 'info')
 
@@ -125,7 +132,7 @@ async function openDetail(row: { id: number }) {
   detailVisible.value = true
 }
 
-interface Line { skuId?: number; qty: number; price?: number; lotNo?: string; snText?: string; sourceOrderItemId?: number }
+interface Line { skuId?: number; qty: number; price?: number; lotNo?: string; productionDate?: string; snText?: string; sourceOrderItemId?: number }
 const createVisible = ref(false)
 const saving = ref(false)
 const form = reactive<{ supplierId?: number; warehouseId?: number; sourceOrderId?: number; items: Line[] }>({
@@ -171,6 +178,7 @@ async function save() {
         sourceOrderItemId: l.sourceOrderItemId ?? null,
         skuId: l.skuId, qty: l.qty, price: l.price,
         lotNo: l.lotNo || null,
+        productionDate: l.productionDate || null,
         snList: l.snText ? l.snText.split(/[,，]/).map((s) => s.trim()).filter(Boolean) : null
       }))
     })
@@ -205,11 +213,17 @@ onMounted(async () => {
   suppliers.value = (await supplierApi.page({ pageSize: 200 })).records
   warehouses.value = await warehouseApi.list()
   products.value = (await productApi.page({ pageSize: 200 })).records
-  auditedOrders.value = (await orderApi.page({ pageSize: 200 })).records
+  allOrders.value = (await orderApi.page({ pageSize: 200 })).records
   await load()
 })
+async function startReturn(row: { id: number; docNo: string }) {
+  await ElMessageBox.confirm(`按入库单 ${row.docNo} 的可退余量生成退货草稿？`, '发起退货', { type: 'warning' })
+  const draftId = await inboundApi.createReturn(row.id)
+  ElMessage.success(`退货草稿已生成（#${draftId}），请到"采购退货"页补原因后审核`)
+  await load()
+}
 </script>
 
 <style scoped>
-.line-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.line-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; align-items: center; }
 </style>

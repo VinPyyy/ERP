@@ -168,6 +168,7 @@ class OrderInboundServiceTest {
                 .isInstanceOf(BizException.class)
                 .extracting(e -> ((BizException) e).getCode())
                 .isEqualTo(ErrorCode.OVER_RECEIVE_EXCEEDED);
+        asserter.assertConsistent();
     }
 
     @Test
@@ -190,6 +191,7 @@ class OrderInboundServiceTest {
         assertThat(orderLine(orderId).getLineStatus()).isEqualTo(30);
         // 全行终态 → 头 COMPLETED
         assertThat(orderMapper.selectById(orderId).getStatus().getCode()).isEqualTo(30);
+        asserter.assertConsistent();
     }
 
     @Test
@@ -222,6 +224,7 @@ class OrderInboundServiceTest {
         assertThat(orderLine(orderId).getDoneQty()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(orderLine(orderId).getLineStatus()).isEqualTo(10);
         assertThat(inboundMapper.selectById(in1).getStatus().getCode()).isEqualTo(50);
+        asserter.assertConsistent();
     }
 
     @Test
@@ -326,6 +329,129 @@ class OrderInboundServiceTest {
                 .eq(InvStock::getWarehouseId, wh.getId()).eq(InvStock::getSkuId, p.getId()));
         assertThat(stock.getQty()).isEqualByComparingTo(bd("7"));
         asserter.assertConsistent();
+    }
+
+    // ---------- M4 审查修复批次（2026-11-21 终审） ----------
+
+    @Test
+    void voidInboundOverReceivedKeepsOrderCompleted() {
+        // I2：溢收后部分作废、done 仍 ≥ qty → 行保持 30、头保持 COMPLETED
+        configService.update(com.wille.erp.system.api.ConfigService.KEY_OVER_RECEIVE_RATIO, "0.1");
+        BaseWarehouse wh = dataFactory.warehouse("OI-W12");
+        BaseSupplier sup = dataFactory.supplier("OI-S12");
+        BaseProduct p = dataFactory.product("OI-P12", MgmtMode.NONE);
+        Long orderId = order(wh, sup, p, "10", "5");
+        orderService.audit(orderId);
+        Long in1 = inboundService.create(draftInbound(orderId, wh, sup, p, "10", "5", orderLine(orderId).getId()));
+        inboundService.audit(in1);
+        Long in2 = inboundService.create(draftInbound(orderId, wh, sup, p, "1", "5", orderLine(orderId).getId()));
+        inboundService.audit(in2);
+        assertThat(orderMapper.selectById(orderId).getStatus().getCode()).isEqualTo(30);
+
+        inboundService.voidInbound(in2, "多收 1 件退回");
+
+        assertThat(orderLine(orderId).getDoneQty()).isEqualByComparingTo(bd("10"));
+        assertThat(orderLine(orderId).getLineStatus()).isEqualTo(30);
+        assertThat(orderMapper.selectById(orderId).getStatus().getCode()).isEqualTo(30);
+        asserter.assertConsistent();
+    }
+
+    @Test
+    void auditForeignSourceLineRejected() {
+        // I3：行 sourceOrderItemId 必须属于头 sourceOrderId——越界行审核硬拒
+        BaseWarehouse wh = dataFactory.warehouse("OI-W14");
+        BaseSupplier sup = dataFactory.supplier("OI-S14");
+        BaseProduct p = dataFactory.product("OI-P14", MgmtMode.NONE);
+        Long orderA = order(wh, sup, p, "10", "5");
+        orderService.audit(orderA);
+        Long orderB = order(wh, sup, p, "5", "5");
+        orderService.audit(orderB);
+
+        Long inboundId = inboundService.create(draftInbound(orderA, wh, sup, p, "3", "5", orderLine(orderA).getId()));
+        PurInboundItem row = inboundItemMapper.selectOne(Wrappers.<PurInboundItem>lambdaQuery()
+                .eq(PurInboundItem::getDocId, inboundId));
+        row.setSourceOrderItemId(orderLine(orderB).getId());
+        inboundItemMapper.updateById(row);
+
+        assertThatThrownBy(() -> inboundService.audit(inboundId))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("源订单行");
+    }
+
+    @Test
+    void draftSourceOrderRejectedAtInboundCreate() {
+        // I3：带源入库单的源订单必须已审核/已完成——草稿订单保存即拒
+        BaseWarehouse wh = dataFactory.warehouse("OI-W15");
+        BaseSupplier sup = dataFactory.supplier("OI-S15");
+        BaseProduct p = dataFactory.product("OI-P15", MgmtMode.NONE);
+        Long orderDraft = order(wh, sup, p, "10", "5");
+
+        assertThatThrownBy(() -> inboundService.create(
+                draftInbound(orderDraft, wh, sup, p, "3", "5", orderLine(orderDraft).getId())))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("审核");
+    }
+
+    @Test
+    void voidDraftInboundAllowedWithoutStockEffect() {
+        // I6：草稿入库单直接作废（此前只能"先审核动库存再作废"）
+        BaseWarehouse wh = dataFactory.warehouse("OI-W16");
+        BaseSupplier sup = dataFactory.supplier("OI-S16");
+        BaseProduct p = dataFactory.product("OI-P16", MgmtMode.NONE);
+        Long inboundId = inboundService.create(draftInbound(null, wh, sup, p, "7", "3", null));
+
+        inboundService.voidInbound(inboundId, "建错了");
+
+        assertThat(inboundMapper.selectById(inboundId).getStatus().getCode()).isEqualTo(50);
+        assertThat(stockMapper.selectCount(Wrappers.<InvStock>lambdaQuery()
+                .eq(InvStock::getWarehouseId, wh.getId()).eq(InvStock::getSkuId, p.getId()))).isZero();
+        asserter.assertConsistent();
+    }
+
+    @Test
+    void snFractionQtyRejectedWithFriendlyError() {
+        // M5：管SN商品数量非整数 → 10001 友好错误（此前 intValueExact 抛 ArithmeticException 500）
+        BaseWarehouse wh = dataFactory.warehouse("OI-W17");
+        BaseSupplier sup = dataFactory.supplier("OI-S17");
+        BaseProduct p = dataFactory.product("OI-P17", MgmtMode.SN);
+        com.wille.erp.purchase.dto.InboundSaveRequest request = draftInbound(null, wh, sup, p, "1.5", "5", null);
+        request.getItems().get(0).setSnList(List.of("OI-SNA"));
+        Long inboundId = inboundService.create(request);
+
+        assertThatThrownBy(() -> inboundService.audit(inboundId))
+                .isInstanceOf(BizException.class)
+                .hasMessageContaining("整数");
+    }
+
+    @Test
+    void warehouseScopeFiltersPageAndBlocksOtherWarehouse() {
+        // I1：仓库数据权限——列表过滤 + 跨仓操作拒绝（spec §5，对 M3 期初同模式）
+        BaseWarehouse whA = dataFactory.warehouse("OI-W13A");
+        BaseWarehouse whB = dataFactory.warehouse("OI-W13B");
+        BaseSupplier sup = dataFactory.supplier("OI-S13");
+        BaseProduct p = dataFactory.product("OI-P13", MgmtMode.NONE);
+        Long inA = inboundService.create(draftInbound(null, whA, sup, p, "1", "1", null));
+        Long inB = inboundService.create(draftInbound(null, whB, sup, p, "1", "1", null));
+
+        dataFactory.roleWithPerms("R_OISCOPE", "入库范围", "purchase:inbound:list");
+        var u = dataFactory.user("oiscope01", "pwd123", "R_OISCOPE");
+        dataFactory.bindWarehouses(u.getId(), whA.getId());
+        StpUtil.logout();
+        StpUtil.login(u.getId());
+
+        var records = inboundService.page(1, 20, null).getRecords();
+        assertThat(records).isNotEmpty();
+        assertThat(records).allSatisfy(r -> assertThat(r.getWarehouseId()).isEqualTo(whA.getId()));
+        assertThat(records).noneSatisfy(r -> assertThat(r.getId()).isEqualTo(inB));
+        assertThatThrownBy(() -> inboundService.audit(inB))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(ErrorCode.NO_PERMISSION);
+        // 零仓库用户查空而非放行
+        var u0 = dataFactory.user("oiscope02", "pwd123", "R_OISCOPE");
+        StpUtil.logout();
+        StpUtil.login(u0.getId());
+        assertThat(inboundService.page(1, 20, null).getRecords()).isEmpty();
     }
 
     private com.wille.erp.purchase.dto.InboundSaveRequest draftInbound(Long orderId, BaseWarehouse wh,

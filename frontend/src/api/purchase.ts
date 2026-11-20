@@ -76,7 +76,8 @@ export const inboundApi = {
   get: (id: number) => http.get(`/purchase/inbounds/${id}`) as any as Promise<DocVO>,
   create: (body: unknown) => http.post('/purchase/inbounds', body) as any as Promise<number>,
   audit: (id: number) => http.post(`/purchase/inbounds/${id}/audit`),
-  void: (id: number, reason: string) => http.post(`/purchase/inbounds/${id}/void`, { reason })
+  void: (id: number, reason: string) => http.post(`/purchase/inbounds/${id}/void`, { reason }),
+  createReturn: (id: number) => http.post(`/purchase/inbounds/${id}/create-return`) as any as Promise<number>
 }
 
 export const returnApi = {

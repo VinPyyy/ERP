@@ -15,11 +15,13 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
- * 全局异常处理（spec §5.1）：
- * BizException → HTTP 200 + 业务 code/msg；
+ * 全局异常处理（spec §5.1，2026-11-21 状态码语义修正）：
+ * BizException → HTTP 200 + 业务 code/msg（业务结果不是传输失败）；
  * 参数校验失败 → 200 + 10001 + 首条字段错误；
+ * 路径/参数类型不匹配 → HTTP 400 + 10001（客户端错误不记服务器故障）；
  * NotLoginException → HTTP 401；NotPermission/NotRole → HTTP 403；
- * 兜底 → 200 + code 500，msg 固定文案（堆栈只进日志，不泄露给前端）。
+ * 兜底 → **HTTP 500** + code 500 封套（服务器故障必须让网关/监控/重试策略可见；
+ * msg 固定文案，堆栈只进日志不泄露）。前端拦截器对非 2xx 读 response.data.msg，行为不变。
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -54,10 +56,19 @@ public class GlobalExceptionHandler {
                 .body(R.fail(ErrorCode.NO_PERMISSION, "无操作权限"));
     }
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<R<Void>> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e) {
+        log.warn("参数类型不匹配: {}", e.getName());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(R.fail(ErrorCode.PARAM_INVALID, "请求参数格式不正确"));
+    }
+
     @ExceptionHandler(Exception.class)
-    public R<Void> handleUnexpected(Exception e) {
+    public ResponseEntity<R<Void>> handleUnexpected(Exception e) {
         log.error("未处理异常", e);
-        return R.fail(ErrorCode.INTERNAL, "服务器内部错误，请联系管理员");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(R.fail(ErrorCode.INTERNAL, "服务器内部错误，请联系管理员"));
     }
 
     private static String describe(FieldError fieldError) {

@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,9 +22,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 全局异常处理契约（spec §5.1）：
- * BizException → HTTP 200 + 业务 code；参数校验 → 10001 + 首条字段错误；
- * NotLogin → HTTP 401；NotPermission → HTTP 403；兜底 → 200 + code 500 且不泄露堆栈。
+ * 全局异常处理契约（spec §5.1，2026-11-21 状态码语义修正）：
+ * BizException → HTTP 200 + 业务 code；参数校验 → 200 + 10001 + 首条字段错误；
+ * 路径/参数类型不匹配 → HTTP 400 + 10001；
+ * NotLogin → HTTP 401；NotPermission → HTTP 403；
+ * 兜底 → HTTP 500 + code 500 且不泄露堆栈。
  * standalone MockMvc：不起 Spring 上下文、不依赖数据库。
  */
 class GlobalExceptionHandlerTest {
@@ -66,12 +69,20 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void unexpectedExceptionMapsTo500CodeWithoutStackTraceLeak() throws Exception {
+    void unexpectedExceptionMapsToHttp500WithoutStackTraceLeak() throws Exception {
         mockMvc.perform(get("/probe/boom"))
-                .andExpect(status().isOk())
+                .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.msg").value("服务器内部错误，请联系管理员"))
                 .andExpect(jsonPath("$.msg").value(org.hamcrest.Matchers.not(
-                        org.hamcrest.Matchers.containsString("NullPointerException"))));
+                        org.hamcrest.Matchers.containsString("secret internal detail"))));
+    }
+
+    @Test
+    void typeMismatchMapsToHttp400NotServerFault() throws Exception {
+        mockMvc.perform(get("/probe/id/null"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.PARAM_INVALID));
     }
 
     // ---- 探针 controller：仅测试用 ----
@@ -108,6 +119,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/probe/boom")
         public void boom() {
             throw new NullPointerException("secret internal detail");
+        }
+
+        @GetMapping("/probe/id/{id}")
+        public Long byId(@PathVariable Long id) {
+            return id;
         }
     }
 }

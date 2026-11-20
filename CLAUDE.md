@@ -4,7 +4,7 @@
 
 ## 项目事实
 
-- 前端挂 `/erp` 前缀，后端接口 `/api/**` 不带前缀；响应封套 `R{code,msg,data}`，业务码定义在 `ErrorCode`（1xxxx 认证 / 2-5xxxx 业务 / 6xxxx 系统）。
+- 前端挂 `/erp` 前缀，后端接口 `/api/**` 不带前缀；响应封套 `R{code,msg,data}`，业务码定义在 `ErrorCode`（1xxxx 认证 / 2-5xxxx 业务 / 6xxxx 系统）；HTTP 状态码语义（业务错 200、兜底 500、类型错 400）见 docs/system/error-semantics.md。
 - 分层由 ArchUnit 强制（controller→service→mapper，门面规则见 ADR 0005）；改结构先看 `ArchitectureTest`。
 - 前端 base 唯一定义在 `vite.config.ts`，router 经 `import.meta.env.BASE_URL` 跟随，禁止两处硬编码。
 - 密码：BCrypt 存储、RSA-OAEP 一次性挑战传输（ADR 0006，细节 docs/security/password-encryption.md）。

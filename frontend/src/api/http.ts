@@ -28,7 +28,9 @@ http.interceptors.response.use(
     if (body && typeof body.code === 'number') {
       if (body.code !== 0) {
         ElMessage.error(body.msg || '操作失败')
-        return Promise.reject(new Error(body.msg || `业务错误 ${body.code}`))
+        const error = new Error(body.msg || `业务错误 ${body.code}`) as Error & { code?: number }
+        error.code = body.code
+        return Promise.reject(error)
       }
       return body.data
     }

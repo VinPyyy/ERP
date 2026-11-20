@@ -128,6 +128,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Lock, User, WarningFilled } from '@element-plus/icons-vue'
 import http from '@/api/http'
+import { encryptLoginPassword, LOGIN_CHALLENGE_INVALID } from '@/api/loginCrypto'
 import { useAuthStore } from '@/stores/auth'
 
 const REMEMBER_KEY = 'erp.login.…name'
@@ -170,6 +171,22 @@ function checkCaps(e: KeyboardEvent | FocusEvent) {
   capsOn.value = (e as KeyboardEvent).getModifierState?.('CapsLock') ?? false
 }
 
+async function postLogin() {
+  const cred = await encryptLoginPassword(form.password)
+  try {
+    return (await http.post('/auth/login', { username: form.username, ...cred })) as unknown as { token: string }
+  } catch (e) {
+    // 挑战过期（页面停留超 TTL）：静默重取挑战重试一次
+    if ((e as Error & { code?: number }).code === LOGIN_CHALLENGE_INVALID) {
+      const fresh = await encryptLoginPassword(form.password)
+      return (await http.post('/auth/login', { username: form.username, ...fresh })) as unknown as {
+        token: string
+      }
+    }
+    throw e
+  }
+}
+
 async function submit() {
   loginError.value = ''
   if (!form.username || !form.password) {
@@ -178,8 +195,8 @@ async function submit() {
   }
   loading.value = true
   try {
-    // M1 提供 /auth/login：返回 { token }（Sa-Token）
-    const data = (await http.post('/auth/login', form)) as unknown as { token: string }
+    // 密码经 /auth/crypto 一次性挑战 RSA-OAEP 加密后传输
+    const data = await postLogin()
     saveRemember()
     auth.setToken(data.token)
     await auth.loadMe()

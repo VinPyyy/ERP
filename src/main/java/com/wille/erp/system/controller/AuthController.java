@@ -1,10 +1,12 @@
 package com.wille.erp.system.controller;
 
 import com.wille.erp.common.api.R;
+import com.wille.erp.system.dto.CryptoChallenge;
 import com.wille.erp.system.dto.LoginRequest;
 import com.wille.erp.system.dto.LoginResponse;
 import com.wille.erp.system.dto.MeResponse;
 import com.wille.erp.system.service.AuthService;
+import com.wille.erp.system.service.LoginCryptoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +24,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final LoginCryptoService loginCryptoService;
+
+    /** 登录前领取一次性加密挑战：公钥 + nonce + TTL */
+    @GetMapping("/crypto")
+    public R<CryptoChallenge> crypto() {
+        return R.ok(loginCryptoService.issue());
+    }
 
     @PostMapping("/login")
     public R<LoginResponse> login(@Valid @RequestBody LoginRequest request) {

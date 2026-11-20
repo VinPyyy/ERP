@@ -1,8 +1,10 @@
 package com.wille.erp.system.service;
 
 import cn.dev33.satoken.stp.StpUtil;
+import com.wille.erp.common.api.ErrorCode;
 import com.wille.erp.common.exception.BizException;
 import com.wille.erp.support.DataFactory;
+import com.wille.erp.support.LoginTestRequests;
 import com.wille.erp.system.dto.LoginRequest;
 import com.wille.erp.system.dto.LoginResponse;
 import com.wille.erp.system.dto.MeResponse;
@@ -34,6 +36,8 @@ class AuthServiceTest {
     private AuthService authService;
     @Autowired
     private DataFactory dataFactory;
+    @Autowired
+    private LoginCryptoService loginCryptoService;
 
     @BeforeEach
     void bindMockRequest() {
@@ -49,11 +53,35 @@ class AuthServiceTest {
         RequestContextHolder.resetRequestAttributes();
     }
 
-    private static LoginRequest req(String username, String password) {
-        LoginRequest request = new LoginRequest();
-        request.setUsername(username);
-        request.setPassword(password);
-        return request;
+    private LoginRequest req(String username, String password) {
+        return LoginTestRequests.encrypted(loginCryptoService, username, password);
+    }
+
+    @Test
+    void loginWithReplayedNonceRejected() {
+        dataFactory.user("zhang3", "pwd123", "SALES");
+        LoginRequest first = req("zhang3", "pwd123");
+        authService.login(first);
+        // 同一 nonce 第二次使用：挑战校验失败，不进入密码校验
+        assertThatThrownBy(() -> authService.login(first))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(ErrorCode.LOGIN_CHALLENGE_INVALID);
+    }
+
+    @Test
+    void loginLockedAfterFiveWrongPasswords() {
+        dataFactory.user("lockme", "pwd123", "SALES");
+        for (int i = 0; i < 5; i++) {
+            String bad = "bad" + i;
+            assertThatThrownBy(() -> authService.login(req("lockme", bad)))
+                    .isInstanceOf(BizException.class);
+        }
+        // 第 6 次即使密码正确也被锁定
+        assertThatThrownBy(() -> authService.login(req("lockme", "pwd123")))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(ErrorCode.LOGIN_LOCKED);
     }
 
     @Test

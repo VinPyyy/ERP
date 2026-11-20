@@ -36,6 +36,8 @@ class AuthControllerTest {
     private ObjectMapper objectMapper;
     @Autowired
     private DataFactory dataFactory;
+    @Autowired
+    private com.wille.erp.system.service.LoginCryptoService loginCryptoService;
 
     private String loginAndGetToken(String username, String password) throws Exception {
         String body = mockMvc.perform(post("/api/auth/login")
@@ -47,11 +49,18 @@ class AuthControllerTest {
         return objectMapper.readTree(body).path("data").path("token").asText();
     }
 
-    private static LoginRequest loginReq(String username, String password) {
-        LoginRequest request = new LoginRequest();
-        request.setUsername(username);
-        request.setPassword(password);
-        return request;
+    private LoginRequest loginReq(String username, String password) {
+        return com.wille.erp.support.LoginTestRequests.encrypted(loginCryptoService, username, password);
+    }
+
+    @Test
+    void cryptoEndpointIsWhitelistedAndIssuesChallenge() throws Exception {
+        mockMvc.perform(get("/api/auth/crypto"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.publicKey").isString())
+                .andExpect(jsonPath("$.data.nonce").isString())
+                .andExpect(jsonPath("$.data.expiresIn").value(120));
     }
 
     @Test
@@ -91,7 +100,7 @@ class AuthControllerTest {
     void loginBlankUsernameReturnsParamInvalid() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"\",\"password\":\"x\"}"))
+                        .content("{\"username\":\"\",\"encryptedPassword\":\"x\",\"nonce\":\"n\",\"ts\":1}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ErrorCode.PARAM_INVALID));
     }

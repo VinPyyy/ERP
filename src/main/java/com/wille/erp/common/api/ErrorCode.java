@@ -21,6 +21,10 @@ public final class ErrorCode {
     public static final int DOC_STATUS_CHANGED = 10003;
     public static final int LOGIN_FAILED = 10004;
     public static final int USER_DISABLED = 10005;
+    /** 加密挑战过期/无效，前端应重取挑战重试 */
+    public static final int LOGIN_CHALLENGE_INVALID = 10006;
+    /** 连续失败触发限流锁定 */
+    public static final int LOGIN_LOCKED = 10007;
     public static final int NOT_LOGIN = 10401;
     public static final int NO_PERMISSION = 10403;
 

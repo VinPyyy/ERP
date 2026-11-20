@@ -31,16 +31,25 @@ public class AuthService {
     private final SysPermissionMapper permissionMapper;
     private final SysUserWarehouseMapper userWarehouseMapper;
     private final PasswordEncoder passwordEncoder;
+    private final LoginCryptoService loginCryptoService;
+    private final LoginRateLimiter loginRateLimiter;
 
     public LoginResponse login(LoginRequest request) {
+        loginRateLimiter.assertNotLocked(request.getUsername());
+        // 挑战校验失败（过期/重放）不计入密码错误次数，也不解密用户凭据
+        String password = loginCryptoService.verifyAndDecrypt(
+                request.getNonce(), request.getTs(), request.getEncryptedPassword());
+
         SysUser user = userMapper.selectOne(Wrappers.<SysUser>lambdaQuery()
                 .eq(SysUser::getUsername, request.getUsername()));
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (user == null || !passwordEncoder.matches(password, user.getPassword())) {
+            loginRateLimiter.onFailure(request.getUsername());
             throw new BizException(ErrorCode.LOGIN_FAILED, "用户名或密码错误");
         }
         if (user.getStatus() == null || user.getStatus() != 1) {
             throw new BizException(ErrorCode.USER_DISABLED, "用户已停用，请联系管理员");
         }
+        loginRateLimiter.onSuccess(request.getUsername());
 
         StpUtil.login(user.getId());
         StpUtil.getSession().set(StpCurrentUserHolder.SESSION_USERNAME, user.getUsername());

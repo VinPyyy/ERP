@@ -1,6 +1,8 @@
 package com.wille.erp.inventory.api;
 
+import com.wille.erp.common.enums.DocType;
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 全系统唯一动库存门面（spec §1/§3，ArchUnit 守护：业务模块不得绕过直接动 inv_* 表）。
@@ -32,4 +34,11 @@ public interface StockService {
 
     /** 可用量 = qty − locked_qty */
     BigDecimal available(Long warehouseId, Long skuId);
+
+    /**
+     * 可退 SN 集合（spec §8-3）：候选中 status=OUT 且最近出库指向 outDocId 的 SN。
+     * 退货审核与 returnable-sns 端点共用同一判定，避免两处漂移。
+     */
+    List<String> returnableSns(Long skuId, List<String> candidates,
+                               DocType outDocType, Long outDocId);
 }

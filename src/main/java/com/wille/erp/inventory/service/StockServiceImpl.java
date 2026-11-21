@@ -248,6 +248,21 @@ public class StockServiceImpl implements StockService {
         return row.getQty().subtract(row.getLockedQty());
     }
 
+    @Override
+    public List<String> returnableSns(Long skuId, List<String> candidates,
+                                      DocType outDocType, Long outDocId) {
+        if (candidates == null || candidates.isEmpty()) {
+            return List.of();
+        }
+        return snMapper.selectList(Wrappers.<InvSn>lambdaQuery()
+                        .eq(InvSn::getSkuId, skuId)
+                        .in(InvSn::getSnCode, candidates)
+                        .eq(InvSn::getStatus, SnStatus.OUT)
+                        .eq(InvSn::getOutDocType, outDocType.name())
+                        .eq(InvSn::getOutDocId, outDocId))
+                .stream().map(InvSn::getSnCode).toList();
+    }
+
     /** 单行变动：校验 → 锁行 → 纯函数 → 回写 → 批次/SN 分账 → 流水 */
     private void move(Long warehouseId, StockCmd.MoveLine line, StockCmd.BizRef ref, boolean inbound) {
         ProductReader.ProductInfo product = productReader.read(line.skuId());

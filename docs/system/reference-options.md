@@ -23,10 +23,13 @@
 | `GET /api/basedata/warehouses/options` | 登录即可 | id, code, name（仅启用） |
 | `GET /api/basedata/suppliers/options` | 登录即可 | id, code, name（仅启用） |
 | `GET /api/basedata/products/options` | 登录即可 | id, skuCode, name, unit（**无价格成本**，仅启用） |
+| `GET /api/basedata/customers/options` | 登录即可 | id, code, name（仅启用；M5 审查 C1 补——销售四页依赖） |
 | `GET /api/purchase/orders/options` | `purchase:inbound:create` 或 `purchase:return:create`（SaMode.OR） | id, docNo, supplierId, warehouseId（仅 AUDITED） |
 | `GET /api/purchase/inbounds/options` | `purchase:return:create` | 同上（仅 AUDITED） |
+| `GET /api/sale/orders/options` | `sale:outbound:create` | id, docNo, customerId, warehouseId（仅 AUDITED，M5） |
+| `GET /api/sale/outbounds/options` | `sale:return:create` | 同上（仅 AUDITED，M5） |
 
-customers/options 待 M5 销售用到时补。
+customers/options 已于 M5 审查批补齐（C1：销售四页依赖，缺失曾致运行时 404）。
 
 ## 3. 代码地图
 

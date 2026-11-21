@@ -11,6 +11,8 @@ import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.exception.BizException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -44,6 +46,12 @@ public class CustomerService {
     public void delete(Long id) {
         requireCustomer(id);
         customerMapper.deleteById(id);
+    }
+
+    /** 下拉引用数据：启用客户 id+编码+名称（docs/system/reference-options.md） */
+    public List<BaseCustomer> listAllActive() {
+        return customerMapper.selectList(Wrappers.<BaseCustomer>lambdaQuery()
+                .eq(BaseCustomer::getStatus, 1).orderByAsc(BaseCustomer::getId));
     }
 
     public PageResult<BaseCustomer> page(PartnerQuery query) {

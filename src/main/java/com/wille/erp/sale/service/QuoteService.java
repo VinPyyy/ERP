@@ -78,6 +78,9 @@ public class QuoteService {
     @Transactional(rollbackFor = Exception.class)
     public void audit(Long id) {
         requireDoc(id);
+        if (itemsOf(id).isEmpty()) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "报价单无明细行");
+        }
         transit(id, DocStatus.DRAFT, DocStatus.AUDITED);
     }
 

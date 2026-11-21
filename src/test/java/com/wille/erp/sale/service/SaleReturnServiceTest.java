@@ -364,6 +364,28 @@ class SaleReturnServiceTest {
     }
 
     @Test
+    void returnableSnsAndPageRespectWarehouseScope() {
+        // 审查 I2/I4：returnable-sns 跨仓拒 + 退货 page 过滤
+        Ctx a = ctx("12A", "10", MgmtMode.NONE);
+        Ctx b = ctx("12B", "10", MgmtMode.NONE);
+        Long obB = auditedDirectOutbound(b, "2", null);
+        returnService.create(sourcedReturn(a, auditedDirectOutbound(a, "2", null), "1", null, null));
+
+        dataFactory.roleWithPerms("R_SRSCOPE", "退货范围", "sale:return:create", "sale:return:list");
+        var u = dataFactory.user("srscope01", "pwd123", "R_SRSCOPE");
+        dataFactory.bindWarehouses(u.getId(), a.wh().getId());
+        StpUtil.logout();
+        StpUtil.login(u.getId());
+
+        assertThatThrownBy(() -> returnService.returnableSns(obLine(obB).getId()))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(ErrorCode.NO_PERMISSION);
+        assertThat(returnService.page(1, 20, null).getRecords())
+                .allSatisfy(r -> assertThat(r.getWarehouseId()).isEqualTo(a.wh().getId()));
+    }
+
+    @Test
     void createFromOutboundCarriesRemaining() {
         Ctx c = ctx("11", "10", MgmtMode.NONE);
         Long ob = auditedDirectOutbound(c, "6", null);

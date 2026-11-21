@@ -29,6 +29,12 @@ public interface StockService {
      */
     void release(StockCmd.LockRef ref, BigDecimal qty);
 
+    /**
+     * 作废重锁恢复原语（M5 审查 C2）：按 ref 定位唯一锁行，remain_qty += qty、locked_qty += qty。
+     * 恢复原行而非新插行，保持"单 ref 单行"纪律，后续 release 不被多行守卫堵死。
+     */
+    void restore(StockCmd.LockRef ref, BigDecimal qty);
+
     /** 作废冲正：取原流水快照原路反向，reverse_flow_id 配对防重复（ADR-0003） */
     void reverse(StockCmd.ReverseCmd cmd);
 

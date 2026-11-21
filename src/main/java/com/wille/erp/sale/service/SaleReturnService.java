@@ -118,6 +118,9 @@ public class SaleReturnService {
             for (SalReturnItem item : items) {
                 requireSourceLine(item.getSourceOutboundItemId(), doc.getSourceOutboundId(), item.getSkuId());
             }
+            // 配额串行化（审查 I1）：锁源出库行后再聚合，并发退货审核在行锁上排队
+            items.stream().map(SalReturnItem::getSourceOutboundItemId).distinct()
+                    .forEach(outboundItemMapper::selectForUpdate);
         }
         if (countLockGuard.counting(doc.getWarehouseId(),
                 items.stream().map(SalReturnItem::getSkuId).toList())) {
@@ -179,13 +182,14 @@ public class SaleReturnService {
         stockService.reverse(new ReverseCmd(DocType.SAL_RETURN, id));
     }
 
-    /** 可退 SN（spec §5 端点）：源出库行 sn_list ∩ 在外且最近出库指向该单 */
+    /** 可退 SN（spec §5 端点）：源出库行 sn_list ∩ 在外且最近出库指向该单；仓库数据权限（审查 I2） */
     public List<String> returnableSns(Long outboundItemId) {
         SalOutboundItem line = outboundItemMapper.selectById(outboundItemId);
         if (line == null) {
             throw new BizException(ErrorCode.PARAM_INVALID, "出库行不存在");
         }
-        requireAuditedOutbound(line.getDocId());
+        SalOutbound outbound = requireAuditedOutbound(line.getDocId());
+        requireWarehouseVisible(outbound.getWarehouseId());
         return stockService.returnableSns(line.getSkuId(), line.getSnList(), DocType.SAL_OUTBOUND, line.getDocId());
     }
 

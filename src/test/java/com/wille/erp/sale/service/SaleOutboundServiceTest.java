@@ -317,6 +317,71 @@ class SaleOutboundServiceTest {
     }
 
     @Test
+    void partialShipVoidThenReOutboundWorks() {
+        // 审查 C2：部分出库→作废→再出库（重锁必须恢复原锁行而非新插行，否则 release 多行守卫堵死后续履约）
+        Ctx c = ctx("12", "10", MgmtMode.NONE);
+        Long orderId = auditedOrder(c, "10");
+        Long ob1 = outboundService.create(sourcedReq(c, orderId, "4"));
+        outboundService.audit(ob1);
+        outboundService.voidOutbound(ob1, "发错批次");
+
+        Long ob2 = outboundService.create(sourcedReq(c, orderId, "6"));
+        outboundService.audit(ob2); // 旧实现此处 release 命中两行 → 10001
+
+        assertThat(orderLine(orderId).getDoneQty()).isEqualByComparingTo(bd("6"));
+        assertThat(stockRow(c).getQty()).isEqualByComparingTo(bd("4"));
+        assertThat(stockRow(c).getLockedQty()).isEqualByComparingTo(bd("4"));
+        List<InvStockLock> live = lockMapper.selectList(Wrappers.<InvStockLock>lambdaQuery()
+                .eq(InvStockLock::getLockDocId, orderId).gt(InvStockLock::getRemainQty, BigDecimal.ZERO));
+        assertThat(live).hasSize(1); // 单 ref 单行纪律
+        assertThat(live.get(0).getRemainQty()).isEqualByComparingTo(bd("4"));
+        asserter.assertConsistent();
+    }
+
+    @Test
+    void voidOutboundOnClosedLineDoesNotRelock() {
+        // 审查 I3：行已关闭(40)时作废出库——库存回补但不重锁，关闭行不得复活锁定
+        Ctx c = ctx("13", "10", MgmtMode.NONE);
+        Long orderId = auditedOrder(c, "10");
+        Long ob1 = outboundService.create(sourcedReq(c, orderId, "4"));
+        outboundService.audit(ob1); // remain 6 done 4
+        orderService.closeItem(orderId, orderLine(orderId).getId()); // 40，释放 6
+
+        outboundService.voidOutbound(ob1, "关行后收尾");
+
+        assertThat(stockRow(c).getQty()).isEqualByComparingTo(bd("10"));
+        assertThat(stockRow(c).getLockedQty()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(lockMapper.selectCount(Wrappers.<InvStockLock>lambdaQuery()
+                .eq(InvStockLock::getLockDocId, orderId).gt(InvStockLock::getRemainQty, BigDecimal.ZERO))).isZero();
+        assertThat(orderLine(orderId).getLineStatus()).isEqualTo(40);
+        asserter.assertConsistent();
+    }
+
+    @Test
+    void warehouseScopeOnPageAndAudit() {
+        // 审查 I4：出库单数据权限覆盖（page 过滤 + 跨仓审核拒）
+        Ctx a = ctx("14A", "10", MgmtMode.NONE);
+        Ctx b = ctx("14B", "10", MgmtMode.NONE);
+        Long obA = outboundService.create(directReq(a, "1"));
+        Long obB = outboundService.create(directReq(b, "1"));
+        assertThat(obA).isNotEqualTo(obB);
+
+        dataFactory.roleWithPerms("R_OBSCOPE", "出库范围", "sale:outbound:list");
+        var u = dataFactory.user("obscope01", "pwd123", "R_OBSCOPE");
+        dataFactory.bindWarehouses(u.getId(), a.wh().getId());
+        StpUtil.logout();
+        StpUtil.login(u.getId());
+
+        assertThat(outboundService.page(1, 20, null).getRecords())
+                .isNotEmpty()
+                .allSatisfy(r -> assertThat(r.getWarehouseId()).isEqualTo(a.wh().getId()));
+        assertThatThrownBy(() -> outboundService.audit(obB))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getCode())
+                .isEqualTo(ErrorCode.NO_PERMISSION);
+    }
+
+    @Test
     void countLockBlocksAudit() {
         Ctx c = ctx("7", "10", MgmtMode.NONE);
         Long obId = outboundService.create(directReq(c, "3"));

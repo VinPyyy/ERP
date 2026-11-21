@@ -198,8 +198,9 @@ class SystemControllerTest {
         // 88b7ffc 引入的暴露面回归锁：/options 无 token 一律 401（全局 auth 函数 + @SaCheckLogin 双层）
         for (String path : new String[]{
                 "/api/system/roles/options", "/api/basedata/warehouses/options",
-                "/api/basedata/suppliers/options", "/api/basedata/products/options",
-                "/api/purchase/orders/options", "/api/purchase/inbounds/options"}) {
+                "/api/basedata/suppliers/options", "/api/basedata/customers/options",
+                "/api/basedata/products/options", "/api/purchase/orders/options",
+                "/api/purchase/inbounds/options"}) {
             mockMvc.perform(get(path))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.code").value(10401));

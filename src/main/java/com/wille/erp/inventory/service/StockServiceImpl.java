@@ -120,13 +120,18 @@ public class StockServiceImpl implements StockService {
                 .sorted(Comparator.comparing(InvStockLock::getWarehouseId)
                         .thenComparing(InvStockLock::getSkuId))
                 .toList();
-        for (InvStockLock lock : rows) {
-            InvStock row = lockOrCreate(lock.getWarehouseId(), lock.getSkuId());
-            row.setLockedQty(row.getLockedQty().subtract(lock.getRemainQty()));
+        for (InvStockLock probe : rows) {
+            InvStock row = lockOrCreate(probe.getWarehouseId(), probe.getSkuId());
+            // 串行化后重读新鲜值再条件清零（M5 审查 C3 同纪律：不做陈旧绝对值回写）
+            InvStockLock fresh = lockMapper.selectById(probe.getId());
+            if (fresh == null || fresh.getRemainQty().signum() == 0) {
+                continue;
+            }
+            if (lockMapper.zeroRemain(fresh.getId(), fresh.getRemainQty()) == 0) {
+                throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "锁定释放并发冲突，请重试");
+            }
+            row.setLockedQty(row.getLockedQty().subtract(fresh.getRemainQty()));
             stockMapper.updateById(row);
-            // remain=0 行保留作历史
-            lock.setRemainQty(BigDecimal.ZERO);
-            lockMapper.updateById(lock);
         }
     }
 
@@ -136,23 +141,45 @@ public class StockServiceImpl implements StockService {
         if (qty == null || qty.signum() <= 0) {
             throw new BizException(ErrorCode.PARAM_INVALID, "核销数量必须大于 0");
         }
+        InvStockLock lock = findSingleLockRow(ref);
+        // 纪律（M5 审查 C3）：先 FOR UPDATE 汇总行串行化本仓×本 SKU 的全部动锁操作，再原子改明细
+        InvStock row = lockOrCreate(lock.getWarehouseId(), lock.getSkuId());
+        int n = lockMapper.releaseRemain(lock.getId(), qty);
+        if (n == 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "核销数量超过剩余锁定");
+        }
+        row.setLockedQty(row.getLockedQty().subtract(qty));
+        stockMapper.updateById(row);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void restore(StockCmd.LockRef ref, BigDecimal qty) {
+        if (qty == null || qty.signum() <= 0) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "恢复数量必须大于 0");
+        }
+        InvStockLock lock = findSingleLockRow(ref);
+        InvStock row = lockOrCreate(lock.getWarehouseId(), lock.getSkuId());
+        // 恢复原行 remain 而非新插行（审查 C2：单 ref 单行纪律，后续 release 不被多行守卫堵死）
+        int n = lockMapper.restoreRemain(lock.getId(), qty);
+        if (n == 0) {
+            throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "锁定明细行不可用");
+        }
+        row.setLockedQty(row.getLockedQty().add(qty));
+        stockMapper.updateById(row);
+    }
+
+    /** 单 ref 单行定位（lock 只在订单审核插一次；restore 复用原行；历史多行属数据异常） */
+    private InvStockLock findSingleLockRow(StockCmd.LockRef ref) {
         List<InvStockLock> rows = lockMapper.selectList(Wrappers.<InvStockLock>lambdaQuery()
                 .eq(InvStockLock::getLockDocType, ref.lockDocType().name())
                 .eq(InvStockLock::getLockDocId, ref.lockDocId())
-                .eq(InvStockLock::getLockItemId, ref.lockItemId())
-                .gt(InvStockLock::getRemainQty, BigDecimal.ZERO));
+                .eq(InvStockLock::getLockItemId, ref.lockItemId()));
         if (rows.size() != 1) {
-            throw new BizException(ErrorCode.PARAM_INVALID, "锁定明细不存在或已核销完毕");
+            throw new BizException(ErrorCode.PARAM_INVALID,
+                    "锁定明细行异常（期望 1 实际 " + rows.size() + "），请检查订单锁数据");
         }
-        InvStockLock lock = rows.get(0);
-        if (lock.getRemainQty().compareTo(qty) < 0) {
-            throw new BizException(ErrorCode.PARAM_INVALID, "核销数量超过剩余锁定");
-        }
-        InvStock row = lockOrCreate(lock.getWarehouseId(), lock.getSkuId());
-        lock.setRemainQty(lock.getRemainQty().subtract(qty));
-        row.setLockedQty(row.getLockedQty().subtract(qty));
-        lockMapper.updateById(lock);
-        stockMapper.updateById(row);
+        return rows.get(0);
     }
 
     @Override

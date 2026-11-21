@@ -20,9 +20,11 @@
 | 出库审核 | release(源行 ref, 本单量) | −= 出库量（remain=0 保留作历史） |
 | 行关闭 | unlock(行 ref) | → 0 |
 | 订单作废 | 逐行 unlock | → 0 |
-| 出库作废 | 按原 ref 重新 lock | += 原核销量 |
+| 出库作废 | **restore(原 ref, 原核销量)**——恢复原行 remain，非新插行 | += 原核销量（已关闭行 40 跳过） |
 
-**重锁充足性命题**（审查重点 2 重审）：开关 off 时可用量恒非负，reverse 先回补本单出库量 ⇒ 重锁时 available ≥ 重锁量恒成立，作废不会撞可用量；`voidOutboundRelocksAndRollsBack` 实测钉住。
+**单 ref 单行纪律**（M5 审查 C2 修复）：`lock` 只在订单审核插一次；作废重锁走 `StockService.restore` 恢复原行；`release/unlock/restore` 一律先 FOR UPDATE inv_stock 汇总行串行化、再条件原子 UPDATE 明细（`remain_qty>=?` 守卫，M5 审查 C3 修复）——同 ref 永不出现两条活跃锁行，"部分出库→作废→再出库"链路畅通（`partialShipVoidThenReOutboundWorks` 钉住）。
+
+**重锁充足性命题**（审查重点 2 重审）：开关 off 时可用量恒非负，reverse 先回补本单出库量 ⇒ 重锁时 available ≥ 重锁量恒成立，作废不会撞可用量；`voidOutboundRelocksAndRollsBack` + `voidOutboundOnClosedLineDoesNotRelock` 钉住。
 
 ## 3. 契约要点
 
@@ -45,11 +47,12 @@
 | `sale/event/Sale{Order,Outbound}AuditedEvent` | DocEvent 子类，二期财务钩子（一期发布无监听） |
 | `frontend/views/sale/*` | 四组页面（api/sale.ts） |
 
-## 5. 验证记录（2026-11-21）
+## 5. 验证记录（2026-11-21，含终审修复批）
 
-- `mvn test` **270/270**（M5 新增 33：报价 4、订单 10、出库 11、退货 11 减重叠、E2E 1）；`npm run build` 绿
-- `SaleEndToEndTest`：一期验收标准自动化——采购入库→报价→锁定→分批出库→完结→退货→SN 支线→全链逆序作废，每节点锁定不变量 + 四层对账零差异
-- `sale-smoke.cjs` 10/10 ×2；auth 13/13、inventory 15/15、purchase 10/10 回归绿
+- 首轮：`mvn test` 270/270；sale-smoke 10/10×2；`SaleEndToEndTest` 通过（一期验收标准自动化）
+- **终审修复批**（3C/4I/8min，全部 Critical+Important 落地）：`mvn test` **274/274**（新增 C2 再履约链、I3 关行不重锁、I4 出库/退货数据权限×2、I2 跨仓拒合并入 I4 例）；sale-smoke 扩至 11 断言（02b=customers/options 回归锁）×2 绿；auth/inventory/purchase 回归绿
+- **浏览器可达性验证**（审查建议采纳，M4 browser-checklist 先例）：四个销售页 admin 登录逐页开新增弹窗，客户下拉均有数据、零错误 toast、零 JS 错误（13/13 PASS，脚本 `C:\Users\Pyw\AppData\Local\Temp\erp-m5-sale-pages-check.py`）
+- 修复批内容：C1 CustomerController#options 补齐；C2/I3 作废重锁改 `restore` 恢复原行 + 关闭行跳过；C3 release/unlock/restore 全部改"先 FOR UPDATE 汇总行、再条件原子改明细"；I1 退货配额前置 `selectForUpdate` 源出库行串行化；I2 returnable-sns 补仓库可见性；I4 出库/退货数据权限用例；M6 报价空行审核拒
 
 ## 6. 已知边界
 

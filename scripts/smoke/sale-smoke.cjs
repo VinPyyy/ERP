@@ -50,6 +50,9 @@ function check(name, cond, detail) {
     skuCode: `SP${RUN}`, name: `销售冒烟商品${RUN}`, unit: '个', mgmtMode: 'NONE', status: 1,
   })
   check('02 主数据', [wh, cu, sup, prod].every((r) => r.code === 0), JSON.stringify([wh.code, cu.code, prod.code]))
+  // 02b 引用数据端点（审查 C1 回归：customers/options 曾缺失致四个销售页运行时全断）
+  const custOpts = await api('GET', '/basedata/customers/options')
+  check('02b customers/options 可用', custOpts.code === 0 && Array.isArray(custOpts.data), `code=${custOpts.code}`)
 
   // 03 无源采购入库 20@5（销售库存来源）
   const pi = await api('POST', '/purchase/inbounds', {

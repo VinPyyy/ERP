@@ -208,5 +208,8 @@ class BasedataControllerTest {
         mockMvc.perform(get("/api/basedata/products/options").header("Authorization", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
+        mockMvc.perform(get("/api/basedata/customers/options").header("Authorization", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
     }
 }

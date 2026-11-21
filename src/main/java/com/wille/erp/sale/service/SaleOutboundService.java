@@ -216,19 +216,22 @@ public class SaleOutboundService {
             throw new BizException(ErrorCode.CONCURRENT_CONFLICT, "单据状态已变化，请刷新后重试");
         }
         stockService.reverse(new ReverseCmd(DocType.SAL_OUTBOUND, id));
-        // 锁定冲正（§4.2-6）：reverse 已回补 qty，重锁可用量恒充足（开关 off 下数学性质成立）
+        // 锁定冲正（§4.2-6 + 审查 C2/I3）：恢复原锁行 remain（restore，不新插行）；
+        // 已关闭行(40)不重锁——库存回补回可用量即可，关闭行不得复活锁定。
+        // reverse 已回补 qty，开关 off 时重锁可用量恒充足（账本 Task4 数学命题）。
         List<Long> affectedOrderIds = new ArrayList<>();
         for (SalOutboundItem item : itemsOf(id)) {
             if (item.getSourceOrderItemId() == null || doc.getSourceOrderId() == null) {
                 continue;
             }
-            stockService.lock(new LockCmd(doc.getWarehouseId(),
-                    new LockRef(DocType.SAL_ORDER, doc.getSourceOrderId(), item.getSourceOrderItemId()),
-                    List.of(new LockLine(item.getSkuId(), item.getQty()))));
+            SalOrderItem src = orderItemMapper.selectById(item.getSourceOrderItemId());
+            if (src != null && src.getLineStatus() != 40) {
+                stockService.restore(new LockRef(DocType.SAL_ORDER, doc.getSourceOrderId(),
+                        item.getSourceOrderItemId()), item.getQty());
+            }
             orderItemMapper.subDoneQty(item.getSourceOrderItemId(), item.getQty());
-            Long orderId = orderItemMapper.selectById(item.getSourceOrderItemId()).getDocId();
-            if (!affectedOrderIds.contains(orderId)) {
-                affectedOrderIds.add(orderId);
+            if (src != null && !affectedOrderIds.contains(src.getDocId())) {
+                affectedOrderIds.add(src.getDocId());
             }
         }
         for (Long orderId : affectedOrderIds) {

@@ -1,7 +1,9 @@
 package com.wille.erp.basedata.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.ImportResultVO;
+import com.wille.erp.basedata.dto.OptionVOs;
 import com.wille.erp.basedata.dto.PartnerQuery;
 import com.wille.erp.basedata.dto.PartnerSaveRequest;
 import com.wille.erp.basedata.entity.BaseCustomer;
@@ -10,6 +12,8 @@ import com.wille.erp.basedata.service.CustomerService;
 import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.api.R;
 import jakarta.validation.Valid;
+
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -37,6 +41,15 @@ public class CustomerController {
 
     private final CustomerService customerService;
     private final PartnerExcelService partnerExcelService;
+
+    /** 下拉引用数据：启用客户裁剪视图，登录即可（docs/system/reference-options.md） */
+    @SaCheckLogin
+    @GetMapping("/options")
+    public R<List<OptionVOs.PartnerOption>> options() {
+        return R.ok(customerService.listAllActive().stream()
+                .map(c -> new OptionVOs.PartnerOption(c.getId(), c.getCode(), c.getName()))
+                .toList());
+    }
 
     @GetMapping
     @SaCheckPermission("basedata:customer:list")

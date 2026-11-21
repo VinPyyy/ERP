@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.wille.erp.common.api.PageResult;
 import com.wille.erp.common.api.R;
 import com.wille.erp.sale.dto.OutboundSaveRequest;
+import com.wille.erp.sale.dto.SaleDocOptionVO;
 import com.wille.erp.sale.dto.OutboundVO;
 import com.wille.erp.sale.entity.SalOutbound;
 import com.wille.erp.sale.service.SaleOutboundService;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/sale/outbounds")
@@ -44,6 +47,13 @@ public class SaleOutboundController {
     public R<Void> update(@PathVariable Long id, @Valid @RequestBody OutboundSaveRequest request) {
         outboundService.update(id, request);
         return R.ok();
+    }
+
+    /** 退货源单下拉：已审核出库单；仅放行能建退货的角色 */
+    @GetMapping("/options")
+    @SaCheckPermission("sale:return:create")
+    public R<List<SaleDocOptionVO>> options() {
+        return R.ok(outboundService.auditedOptions());
     }
 
     @GetMapping

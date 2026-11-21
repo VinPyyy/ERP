@@ -1,18 +1,18 @@
 # M5 销售链路（一期验收闭环达成）
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 04（与 05 可并行）
 Spec: ../spec.md（§2.5 sale 表、§3e 锁定生命周期、§4.1/4.2 时序、§8-1/5/6）
 
 ## 任务
 
-- [ ] 报价单：不锁库存、valid_until 有效期、转销售订单后 COMPLETED
-- [ ] 销售订单：审核即锁定（可用量校验→整单成功或回滚，不做部分锁定）、行关闭释放剩余锁定、订单作废全额释放（前提无未作废下游出库单）、SaleOrderAuditedEvent
-- [ ] 销售出库单（出库即发货）：carrier/tracking_no 挂头上；锁定转实扣（remain_qty−=/locked_qty−=/qty−= 同事务同额）；直接出库（无 source）按可用量校验；**超发严格禁止**（qty ≤ 订单行剩余量硬校验，§8-5）；批次/SN 核销；审核发布 SaleOutboundAuditedEvent（二期应收钩子）；作废冲正（锁定恢复+done_qty 回减+状态回退）
-- [ ] 销售退货单：**有原单**（价按原单不可改、SN 从 returnable-sns 勾选、累计退货 ≤ 原出库量）/ **无原单**（价手录、成本按当前均价，用户裁决 §8-6）；退货入库调 StockService.in；SN 翻回 IN_STOCK
-- [ ] returnable-sns 接口：原出库行 sn_list 中 status=OUT 且未出现在任何非作废退货行（§8-3）
-- [ ] 可用量查询接口（订单录入/出库录入实时提示）
-- [ ] 前端 4 组页面
+- [x] 报价单：不锁库存、valid_until 有效期、转销售订单后 COMPLETED
+- [x] 销售订单：审核即锁定（可用量校验→整单成功或回滚，不做部分锁定）、行关闭释放剩余锁定、订单作废全额释放（前提无未作废下游出库单）、SaleOrderAuditedEvent
+- [x] 销售出库单（出库即发货）：carrier/tracking_no 挂头上；锁定转实扣（remain_qty−=/locked_qty−=/qty−= 同事务同额）；直接出库（无 source）按可用量校验；**超发严格禁止**（qty ≤ 订单行剩余量硬校验，§8-5）；批次/SN 核销；审核发布 SaleOutboundAuditedEvent（二期应收钩子）；作废冲正（锁定恢复+done_qty 回减+状态回退）
+- [x] 销售退货单：**有原单**（价按原单不可改、SN 从 returnable-sns 勾选、累计退货 ≤ 原出库量）/ **无原单**（价手录、成本按当前均价，用户裁决 §8-6）；退货入库调 StockService.in；SN 翻回 IN_STOCK
+- [x] returnable-sns 接口：原出库行 sn_list 中 status=OUT 且未出现在任何非作废退货行（§8-3）
+- [x] 可用量查询接口（订单录入/出库录入实时提示）
+- [x] 前端 4 组页面
 
 ## 验收（TDD：先写测试）
 

@@ -93,6 +93,26 @@
 | 09 | 入库作废（下游已清） | 库存 0、done 回减 | `voidInboundRollsBackDoneQtyAndStock` |
 | 10 | replay-check | consistent=true | `FlowReplayCheckerTest` |
 
+### `scripts/smoke/sale-smoke.cjs` —— 销售链路（M5，一期闭环）
+
+```
+运行：node scripts/smoke/sale-smoke.cjs
+前置：后端 8080 + admin 种子；runid 隔离主数据与单据链，收尾全链逆序作废净库存 0
+```
+
+| # | 场景 | 期望 | 关联测试 |
+|---|---|---|---|
+| 01 | admin 加密登录 | code 0 | auth-smoke |
+| 02 | runid 仓库/客户/供应商/商品 | code 0 | — |
+| 03 | 无源采购入库 20@5 | 库存 20 | purchase-smoke |
+| 04 | 报价→审核→转订单→审核锁定 | locked=10 | `auditLocksPerLineAndPublishesEvent` |
+| 05 | 出库 6 核销实扣 | qty 14 locked 4 | `auditSourcedReleasesLockAndMovesStock` |
+| 06 | 出库 4 → done=10 行30 头COMPLETED 锁清零 | 联动 | `partialShipThenLineAndHeaderComplete` |
+| 07 | 超发 1 件被拒 + 失败草稿作废 | 50001 + void 0 | `overShipBoundaryAndCumulative` |
+| 08 | 有源退货 2（价 99 被强制 9） | 库存 12 | `sourcedReturnCarriesPriceAndQuotaAuditedOnly` |
+| 09 | 全链逆序作废（退货→出库×2→订单→采购入库） | 库存 0 锁定 0 | `voidOutboundRelocksAndRollsBack` |
+| 10 | replay-check | consistent=true | `FlowReplayCheckerTest` |
+
 ## 3. 执行记录
 
 | 日期 | 套件 | 结果 | 备注 |
@@ -103,6 +123,7 @@
 | 2026-11-21 | purchase-smoke（审查修复批 10 步） | 10/10 通过（×2；auth 12/12、inventory 回归同步通过） | 首跑步骤 06 假通过暴露环境坑：dev 库 ratio 曾被手工调成 0.1，溢收 1 件合法——改用再入 100 件保证任何正常 ratio 下必拒；同时新步骤实测了 I6 草稿作废 |
 | 2026-11-21 | auth-smoke（扩至 13 步） | 13/13 通过（inventory 15/15、purchase 10/10 同步回归绿） | 步骤 13=引用数据分权回归（受限用户 roles 403 + options 200），配套浏览器实测见 docs/system/reference-options.md §4 |
 | 2026-11-21 | inventory-smoke（扩至 16 步） | 16/16 通过（auth 13/13、purchase 10/10 同步回归绿） | 步骤 15=编码删除后重建"曾被使用"（用户实测缺陷回归，username-lifecycle §6）；用户原始场景 dev 库实测 `POST /basedata/products skuCode=11` → 10001（修复前 500） |
+| 2026-11-21 | sale-smoke | 10/10 通过（×2；auth/inventory/purchase 三套回归绿） | M5 一期闭环套件；端到端服务层版本 `SaleEndToEndTest` 在 mvn test 内常跑 |
 
 ## 4. 落地规则（新增冒烟场景时）
 

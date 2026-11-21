@@ -15,6 +15,7 @@ import com.wille.erp.inventory.api.StockCmd.LockLine;
 import com.wille.erp.inventory.api.StockCmd.LockRef;
 import com.wille.erp.inventory.api.StockService;
 import com.wille.erp.sale.dto.OutboundItemRequest;
+import com.wille.erp.sale.dto.SaleDocOptionVO;
 import com.wille.erp.sale.dto.OutboundSaveRequest;
 import com.wille.erp.sale.dto.SaleOrderItemRequest;
 import com.wille.erp.sale.dto.SaleOrderSaveRequest;
@@ -210,6 +211,15 @@ public class SaleOrderService {
         }
         request.setItems(lines);
         return outboundService.create(request);
+    }
+
+    /** 出库源单下拉：已审核订单裁剪视图（docs/system/reference-options.md 同源思路） */
+    public List<SaleDocOptionVO> auditedOptions() {
+        return orderMapper.selectList(Wrappers.<SalOrder>lambdaQuery()
+                        .eq(SalOrder::getStatus, DocStatus.AUDITED).orderByDesc(SalOrder::getId))
+                .stream().map(o -> new SaleDocOptionVO(
+                        o.getId(), o.getDocNo(), o.getCustomerId(), o.getWarehouseId()))
+                .toList();
     }
 
     public PageResult<SalOrder> page(int pageNum, int pageSize, String keyword) {

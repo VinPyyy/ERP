@@ -21,6 +21,7 @@ import com.wille.erp.inventory.api.StockCmd.MoveLine;
 import com.wille.erp.inventory.api.StockCmd.ReverseCmd;
 import com.wille.erp.inventory.api.StockService;
 import com.wille.erp.sale.dto.OutboundItemRequest;
+import com.wille.erp.sale.dto.SaleDocOptionVO;
 import com.wille.erp.sale.dto.OutboundSaveRequest;
 import com.wille.erp.sale.dto.OutboundVO;
 import com.wille.erp.sale.entity.SalOrder;
@@ -241,6 +242,15 @@ public class SaleOutboundService {
             }
         }
         events.publishEvent(new SaleOutboundAuditedEvent(doc.getId(), doc.getDocNo(), DocEvent.Action.VOIDED));
+    }
+
+    /** 退货源单下拉：已审核出库单裁剪视图（权限见 SaleOutboundController#options） */
+    public List<SaleDocOptionVO> auditedOptions() {
+        return outboundMapper.selectList(Wrappers.<SalOutbound>lambdaQuery()
+                        .eq(SalOutbound::getStatus, DocStatus.AUDITED).orderByDesc(SalOutbound::getId))
+                .stream().map(o -> new SaleDocOptionVO(
+                        o.getId(), o.getDocNo(), o.getCustomerId(), o.getWarehouseId()))
+                .toList();
     }
 
     public PageResult<SalOutbound> page(int pageNum, int pageSize, String keyword) {
